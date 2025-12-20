@@ -1,0 +1,7 @@
+geo_env/
+*.zip
+*.tar
+*.pt
+*.ckpt
+__pycache__/
+.DS_Store

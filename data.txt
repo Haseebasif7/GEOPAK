@@ -1,0 +1,1 @@
+wget https://s3.amazonaws.com/google-landmark/metadata/train.csv
