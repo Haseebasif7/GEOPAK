@@ -5,3 +5,4 @@ geo_env/
 *.ckpt
 __pycache__/
 .DS_Store
+.env

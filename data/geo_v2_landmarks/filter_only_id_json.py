@@ -1,3 +1,4 @@
+# apply this on train csv to get pakistan images
 import json
 import pandas as pd
 from pathlib import Path
