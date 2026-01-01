@@ -6,3 +6,4 @@ geo_env/
 __pycache__/
 .DS_Store
 .env
+data/yfcc/shards/shard_pakistan.msg
