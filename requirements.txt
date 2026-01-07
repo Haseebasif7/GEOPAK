@@ -5,3 +5,6 @@ geopy
 pandas
 msgpack
 kaggle
+huggingface_hub
+flickr-api
+python-dotenv

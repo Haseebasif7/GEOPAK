@@ -7,5 +7,6 @@ __pycache__/
 .DS_Store
 .env
 # MessagePack files (too large for GitHub)
+*.csv
 *.msg
 data/yfcc/shards/shard_pakistan.msg
