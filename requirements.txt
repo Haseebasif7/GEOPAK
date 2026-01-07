@@ -8,3 +8,5 @@ kaggle
 huggingface_hub
 flickr-api
 python-dotenv
+geopandas
+shapely
