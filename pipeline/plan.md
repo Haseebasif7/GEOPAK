@@ -48,6 +48,17 @@ Each sample:
 }
 ```
 
+======================================================================
+Province distribution (for rows WITH province):
+======================================================================
+  Sindh: 89,252 (69.41%)
+  Punjab: 24,645 (19.17%)
+  Khyber Pakhtunkhwa: 5,881 (4.57%)
+  Islamabad Capital Territory: 4,841 (3.76%)
+  Gilgit-Baltistan: 3,125 (2.43%)
+  Balochistan: 550 (0.43%)
+  Azad Kashmir: 297 (0.23%)
+
 ---
 
 ## 1.2 Province-Aware Geocell Construction (OFFLINE STEP)
@@ -67,10 +78,7 @@ Use **HDBSCAN** (preferred) or **K-Means** per province.
 Constraints:
 
 * Min samples per cell: **40**
-* Target radius:
 
-  * Urban: **3–8 km**
-  * Rural: **25–50 km**
 * Merge undersized clusters.
 
 ### Step 4 — Save Metadata
@@ -87,20 +95,6 @@ For every cell:
   "neighbor_cell_ids"
 }
 ```
-
-### Target Cell Counts
-
-| Province    | Cells |
-| ----------- | ----- |
-| Sindh       | 450   |
-| Punjab      | 400   |
-| KPK         | 220   |
-| ICT         | 100   |
-| GB          | 180   |
-| Balochistan | 100   |
-| AJK         | 80    |
-
-**Total ≈ 1,530 cells**
 
 ---
 
@@ -121,43 +115,143 @@ cell_center_latlon
 
 ---
 
-## 2.1 Vision Encoder (Backbone)
+## 2.1 Dual-Encoder Architecture (Complementary Representation Learning)
 
-### Backbone (Recommended)
+### Why Dual-Encoder Works
 
-**ViT-B/16 (CLIP-pretrained)**
+The model faces two different image regimes:
 
-Input: `3 × 224 × 224`
-Output: `D = 768`
+* **Scenery-rich images** → roads, mountains, skylines, landscapes → strong spatial cues
+* **Scenery-poor images** → people, shops, objects, partial views → weak but contextual cues
 
-### Best Practices
+👉 No single encoder is optimal for both.
 
-* Use **LayerNorm everywhere**
-* No classifier head
-* Initial state: **fully frozen**
+**Solution:** Split responsibilities with complementary encoders.
+
+| Encoder | Role |
+|---------|------|
+| **CLIP** | Robust general context, culture, objects, ambiguity handling |
+| **Scene Encoder** | Strong geometry, layout, environment structure |
+
+This is **complementary representation learning**, not redundancy.
 
 ---
 
-## 2.2 Shared Projection Block (Geographic Representation)
+### 2.1.1 Encoder A — CLIP (Primary, Robust)
 
-This block is critical. Use residuals.
+**ViT-B/16 (CLIP-pretrained)**
+
+* Input: `3 × 224 × 224`
+* Output: `D = 768`
+* Initial state: **fully frozen**
+* Handles all images safely
+
+---
+
+### 2.1.2 Encoder B — Scene Encoder (Specialist)
+
+Choose **ONE** of the following:
+
+* **ResNet-50 (Places365-pretrained)**
+* **ConvNeXt-Tiny (Places365-pretrained)**
+* **ViT-Small (Places or ImageNet-Places hybrid)**
+
+* Output: typically `512` or `768`
+* ⚠️ This encoder is **not trusted blindly** — it's a specialist that helps when scenery is informative
+
+---
+
+## 2.2 Projection Before Fusion (CRITICAL)
+
+**Never fuse raw encoder outputs directly.**
+
+**Why?**
+* Feature scales differ
+* Semantics differ
+* One encoder will dominate
+
+**Correct approach:**
 
 ```
-Input: 768
+CLIP_feat (768)
 ↓
 Linear(768 → 512)
 LayerNorm
 GELU
-Dropout(0.2)
+→ E_clip (512)
+
+Scene_feat (512/768)
 ↓
-Linear(512 → 512)
+Linear(→ 512)
 LayerNorm
-↓
-Residual Add
-Output: 512-dim embedding
+GELU
+→ E_scene (512)
 ```
 
-Call this output **E_img**
+Now both live in **compatible geometry space** (512-dim).
+
+---
+
+## 2.3 Fusion Strategy
+
+### ❌ What NOT to do
+
+* Simple concatenation only
+* Simple averaging
+* Letting scene encoder dominate early
+
+### ✅ Correct Fusion (Recommended)
+
+**Option 1 — Gated Fusion (BEST)**
+
+```
+α = sigmoid( Linear([E_clip, E_scene]) )
+E_fused = α · E_scene + (1 − α) · E_clip
+```
+
+**Interpretation:**
+* If scenery is informative → trust scene encoder (α → 1)
+* If image is ambiguous → fall back to CLIP (α → 0)
+* This is **learned trust calibration**
+
+**Option 2 — Residual Fusion (Simpler, still good)**
+
+```
+E_fused = E_clip + β · E_scene
+```
+
+Where β is:
+* Small (e.g., initialized to 0.1)
+* Learnable
+
+CLIP stays dominant unless scene signal is strong.
+
+---
+
+## 2.4 Complete Feature Flow
+
+```
+Image (3 × 224 × 224)
+↓
+┌─────────────────┬─────────────────┐
+│ CLIP Encoder    │ Scene Encoder   │
+│ (frozen)        │ (frozen)         │
+└────────┬────────┴────────┬─────────┘
+         │                │
+         ↓                ↓
+    CLIP_feat (768)  Scene_feat (512/768)
+         │                │
+         ↓                ↓
+    Proj → E_clip    Proj → E_scene
+         │                │
+         └────────┬────────┘
+                  ↓
+           Fusion Module
+                  ↓
+            E_img (512)
+```
+
+👉 **Everything else stays exactly the same** — province head, cell heads, offsets, losses — unchanged.
 
 ---
 
@@ -178,10 +272,65 @@ Softmax
 
 ### Loss
 
-**Weighted Cross-Entropy**
+**Weighted Cross-Entropy with Effective-Number Weighting**
 
-Weights = inverse province frequency
-(Balochistan, AJK, GB heavily upweighted)
+#### 3.1 Class Weights (Concrete Values)
+
+Use **effective-number weighting**, not raw inverse frequency.
+
+**Step-by-Step Formula:**
+
+1. **Effective number** (per province):
+   ```
+   E_p = (1 − β^n_p) / (1 − β)
+   ```
+
+2. **Weight** (inverse of effective number):
+   ```
+   w_p = 1 / E_p
+   ```
+
+3. **Normalize by mean** (critical step):
+   ```
+   w_p_normalized = w_p / mean(w_p)
+   ```
+
+Where:
+* `β = 0.999` (smoothing factor)
+* `n_p` = number of samples in province `p`
+
+**Why this works:**
+* Avoids exploding weights for rare provinces (AJK, Balochistan)
+* More stable than raw inverse frequency
+* Better generalization for imbalanced classes
+* Normalization ensures weights are on a reasonable scale
+
+**✅ Correct Approximate Weights** (based on current dataset):
+
+| Province | Samples | Final Weight (≈) |
+|--------|---------|------------------|
+| Sindh | 64,925 | 0.25–0.30 |
+| Punjab | 7,458 | 0.9–1.0 |
+| KPK | 4,958 | 1.1–1.2 |
+| ICT | 4,707 | 1.1–1.2 |
+| Balochistan | 3,624 | 1.3–1.4 |
+| Gilgit-Baltistan | 2,154 | 1.6–1.8 |
+| Azad Kashmir | 1,075 | 2.1–2.4 |
+
+👉 **This is the correct scale.**
+⚠️ **Anything above ~3 is a red flag** — indicates incorrect calculation or normalization.
+
+**Implementation:**
+
+```python
+beta = 0.999
+# Step 1: Calculate effective number per province
+effective_num = (1 - beta ** n_per_province) / (1 - beta)
+# Step 2: Weight is inverse of effective number
+weights = 1.0 / effective_num
+# Step 3: Normalize by mean (CRITICAL)
+weights = weights / weights.mean()
+```
 
 ---
 
@@ -321,7 +470,9 @@ Used only to stabilize training.
    ```
 5. Final output:
 
-```
+``` 
+p_i​=P(province p​∣image) × P(cell c​∣image,province p​)
+
 LatLon = Σ p_i × pred_i
 ```
 
@@ -375,43 +526,63 @@ L_total =
 
 ## Phase 0 — Province Warm-Up (VERY IMPORTANT)
 
-* Encoder: ❌ Frozen
+* **CLIP Encoder**: ❌ Frozen
+* **Scene Encoder**: ❌ Frozen
 * Train: Province head only
+* **Fusion gate learns when scene helps**
 * Epochs: 5–8
 * Target: >95% accuracy
+
+**Why freeze both?**
+* You want calibration, not feature drift
+* Fusion gate learns trust without encoder updates
 
 ---
 
 ## Phase 1 — Geography Structure Learning
 
-* Encoder: ❌ Frozen
+* **CLIP Encoder**: ❌ Frozen
+* **Scene Encoder**: ❌ Frozen
 * Train:
 
   * Province head
   * Province geocell heads
   * Offset heads
   * Embeddings
+  * **Fusion gate**
 * Epochs: 25–30
 * LR: 1e-3
 
+**Now the model learns:**
+* "Scene features help here, but not there"
+* Geographic structure without encoder drift
+
 ---
 
-## Phase 2 — Partial Vision Adaptation
+## Phase 2 — Partial Vision Adaptation (VERY CAREFUL)
 
-* Unfreeze top **30%** of encoder
+* Unfreeze:
+  * Top **30%** of CLIP encoder
+  * Top **20%** of Scene encoder
 * LR:
 
-  * Encoder: 1e-5
+  * CLIP: 1e-5
+  * Scene: 5e-6 (smaller — more brittle and shortcut-prone)
   * Heads: 5e-4
 * Epochs: 30–40
 * **Province-balanced batches**
+
+**Why smaller LR for scene encoder?**
+* It is more brittle and shortcut-prone
+* Conservative updates prevent overfitting to scene shortcuts
 
 ---
 
 ## Phase 3 — Optional Full Fine-Tune
 
-* Only if validation improves
-* Encoder LR: 5e-6
+* Only if validation improves (especially on indoor/object subset)
+* CLIP Encoder LR: 5e-6
+* Scene Encoder LR: 2e-6 (even more conservative)
 * Heads LR: 1e-4
 
 ---
@@ -472,11 +643,3 @@ If:
 
 ---
 
-If you want next:
-
-* PyTorch class-by-class code skeleton
-* Geocell clustering script
-* Debug checklist for failure modes
-* Confidence calibration & uncertainty radius
-
-Just tell me what to generate next.

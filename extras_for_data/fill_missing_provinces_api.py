@@ -7,8 +7,8 @@ from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 import json
 
 # Paths
-CSV_PATH = Path(__file__).parent.parent / "merged_training_data_with_province.csv"
-OUTPUT_PATH = Path(__file__).parent.parent / "merged_training_data_with_province.csv"
+CSV_PATH = "province_to_add_with_province.csv"
+OUTPUT_PATH = "province_to_add_with_province.csv"
 
 # API Configuration
 USE_NOMINATIM = True  # Free but slow (1 req/sec)

@@ -4,9 +4,9 @@ from shapely.geometry import Point
 from pathlib import Path
 
 # Paths
-CSV_PATH = Path(__file__).parent.parent / "merged_training_data.csv"
+CSV_PATH = "province_to_add.csv"
 PIPELINE_DIR = Path(__file__).parent
-OUTPUT_PATH = Path(__file__).parent.parent / "merged_training_data_with_province.csv"
+OUTPUT_PATH = "province_to_add_with_province.csv"
 
 print("=" * 70)
 print("Adding Province Column using Offline Reverse Geocoding")

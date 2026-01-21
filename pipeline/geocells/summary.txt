@@ -1,0 +1,24 @@
+High-level summary of the main geocell steps
+Step 1 – Per-province UTM projection + initial HDBSCAN
+Started from merged_training_data_with_province.csv (id, lat, lon, path, province).
+For each province, projected (lat, lon) → (x_m, y_m) in a chosen UTM EPSG.
+Ran HDBSCAN with min_cluster_size=40, min_samples=10 to get initial cluster_id (with -1 as noise).
+Step 2 – Merge undersized clusters + assign noise
+Any cluster with < 40 samples was merged into its nearest neighbor (by centroid in UTM).
+All noise points (cluster_id=-1) were assigned to the nearest cluster centroid.
+Produced refined province_<name>_clusters_step2.csv.
+Step 3 – Radius / target cells (best-effort)
+Radius step: split overly large-radius clusters (best-effort toward 50 km) using KMeans(2), only when both child cells would still have ≥40 samples; re-merged any <40 cells.
+Target cell counts: for each province, used effective_target = min(spec_target, floor(n/40)), split/merged to approach this, again never dropping below 40 samples.
+Final cleanup: another min-size merge pass and best-effort radius reduction.
+Result: province_<name>_clusters_final.csv for each province.
+Final cell counts and cell_id ranges
+From pipeline/geocells/cell_metadata.csv (global cell_id is contiguous across provinces):
+Sindh: 450 cells, cell_id [0, 449]
+Punjab: 139 cells, cell_id [450, 588]
+Khyber Pakhtunkhwa: 50 cells, cell_id [589, 638]
+ICT: 19 cells, cell_id [639, 657]
+Gilgit-Baltistan: 30 cells, cell_id [658, 687]
+Balochistan: 6 cells, cell_id [688, 693]
+Azad Kashmir: 5 cells, cell_id [694, 698]
+Total cells: 699

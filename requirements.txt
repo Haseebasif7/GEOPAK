@@ -10,3 +10,13 @@ flickr-api
 python-dotenv
 geopandas
 shapely
+hdbscan
+scikit-learn
+torch
+torchvision
+timm
+streetview
+requests
+datasets
+modal
+sparqlwrapper

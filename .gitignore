@@ -10,3 +10,5 @@ __pycache__/
 *.csv
 *.msg
 data/yfcc/shards/shard_pakistan.msg
+resnet50_places365.pth.tar
+failed_urls.txt

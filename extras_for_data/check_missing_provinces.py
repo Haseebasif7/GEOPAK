@@ -2,7 +2,7 @@ import pandas as pd
 from pathlib import Path
 
 # Paths
-CSV_PATH = Path(__file__).parent.parent / "merged_training_data_with_province.csv"
+CSV_PATH = "province_to_add_with_province.csv"
 
 print("=" * 70)
 print("Checking Missing Provinces")
