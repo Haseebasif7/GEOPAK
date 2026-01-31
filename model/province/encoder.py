@@ -31,7 +31,8 @@ class GatedFusion(nn.Module):
     def __init__(self, dim=512):
         super().__init__()
         self.gate = nn.Linear(dim * 2, 1)  # Takes concatenated features
-        nn.init.constant_(self.gate.bias, -1.0)
+        nn.init.normal_(self.gate.weight, mean=0.0, std=0.01)
+        nn.init.constant_(self.gate.bias, -0.4)
         
     def forward(self, e_clip, e_scene):
         """
@@ -100,7 +101,8 @@ class GeopakModel(nn.Module):
             checkpoint = torch.load(scene_model_path, map_location='cpu')
         else:
             scene_encoder = models.resnet50(num_classes=365)
-            checkpoint = torch.load("../resnet50_places365.pth.tar", map_location='cpu')
+            # Path from model/province/ to project root
+            checkpoint = torch.load("../../resnet50_places365.pth.tar", map_location='cpu')
 
         state_dict = {k.replace('module.',''): v for k, v in checkpoint['state_dict'].items()}
         scene_encoder.load_state_dict(state_dict)

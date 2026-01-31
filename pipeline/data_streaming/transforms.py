@@ -1,7 +1,4 @@
-"""
-Transformer-friendly data augmentations
-Light, realistic augmentations that preserve location cues
-"""
+"""Transformer-friendly data augmentations"""
 from torchvision import transforms
 import random
 import numpy as np
@@ -46,25 +43,14 @@ class SmallRandomRotation:
 
 
 def get_train_transforms():
-    """
-    Get training transforms with transformer-friendly augmentations
-    
-    Geometric:
-    - RandomResizedCrop (scale 0.8-1.0)
-    - Small random rotation (±5-10°)
-    - Horizontal flip (optional, only if orientation isn't important)
-    
-    Photometric:
-    - Color jitter (brightness, contrast, saturation ≤ 0.2)
-    - Random gamma correction
-    - Slight Gaussian noise
-    """
+    """Get training transforms with transformer-friendly augmentations"""
     return transforms.Compose([
         # Geometric augmentations
         transforms.RandomResizedCrop(
             size=224,
-            scale=(0.8, 1.0),  # Preserve most of the image
-            ratio=(0.9, 1.1)   # Keep aspect ratio close to original
+            scale=(0.95, 1.0),   # very small crop variation
+            ratio=(0.98, 1.02),
+            interpolation=Image.BICUBIC
         ),
         
         # Photometric augmentations
@@ -81,9 +67,7 @@ def get_train_transforms():
 
 
 def get_val_test_transforms():
-    """
-    Get validation/test transforms (no augmentation, just resize and normalize)
-    """
+    """Get validation/test transforms"""
     return transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),

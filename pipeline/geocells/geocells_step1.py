@@ -1,18 +1,4 @@
-"""
-Province-aware geocell construction (Step 1-3):
-1) Split by province
-2) Project lat/lon to per-province UTM meters
-3) Initial HDBSCAN clustering per province
-
-Outputs (under pipeline/geocells/):
-- province_<name>_utm.csv         (id, lat, lon, x_m, y_m, path)
-- province_<name>_clusters.csv    (id, x_m, y_m, cluster_id)
-- geocell_step1_summary.md        (counts, noise, EPSG, params)
-
-Note: Does NOT modify merged_training_data_with_province.csv
-Run manually from repo root:
-    python pipeline/geocells_step1.py
-"""
+"""Province-aware geocell construction (Step 1-3)"""
 
 from pathlib import Path
 import numpy as np
@@ -24,7 +10,7 @@ import hdbscan
 # ---------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------
-INPUT_CSV = Path("merged_training_data_with_province_backup_before_ICT_fix.csv")
+INPUT_CSV = Path("final_cleaned_merged.csv")
 OUT_DIR = Path("pipeline/geocells")
 SUMMARY_PATH = OUT_DIR / "geocell_step1_summary.md"
 
@@ -39,11 +25,25 @@ EPSG_MAP = {
     "Azad Kashmir": 32643,
 }
 
+# Province-specific HDBSCAN parameters
+HDBSCAN_KWARGS_BY_PROVINCE = {
+    "Balochistan": dict(
+        min_cluster_size=35,  # Lowered from 40 to allow more clusters
+        min_samples=4,  # Lowered from 10 to 4 for significantly more clusters
+        metric="euclidean",
+    ),
+}
+
+# Default HDBSCAN parameters
 HDBSCAN_KWARGS = dict(
     min_cluster_size=40,
     min_samples=10,
     metric="euclidean",
 )
+
+def get_hdbscan_kwargs(province: str) -> dict:
+    """Get HDBSCAN parameters for a province, with fallback to default."""
+    return HDBSCAN_KWARGS_BY_PROVINCE.get(province, HDBSCAN_KWARGS)
 
 
 def project_province(df: pd.DataFrame, epsg: int) -> gpd.GeoDataFrame:
@@ -60,9 +60,10 @@ def project_province(df: pd.DataFrame, epsg: int) -> gpd.GeoDataFrame:
     return gdf
 
 
-def run_hdbscan(coords: np.ndarray) -> np.ndarray:
+def run_hdbscan(coords: np.ndarray, province: str = None) -> np.ndarray:
     """Run HDBSCAN on (x_m, y_m) array."""
-    clusterer = hdbscan.HDBSCAN(**HDBSCAN_KWARGS)
+    kwargs = get_hdbscan_kwargs(province) if province else HDBSCAN_KWARGS
+    clusterer = hdbscan.HDBSCAN(**kwargs)
     return clusterer.fit_predict(coords)
 
 
@@ -81,7 +82,6 @@ def main():
 
     # Drop rows without province just in case
     df = df.dropna(subset=["province"])
-    print(f"Rows after province drop: {len(df):,}")
 
     summary = []
     summary.append("# Geocell Step1 Summary\n")
@@ -104,8 +104,8 @@ def main():
         utm_path = OUT_DIR / f"province_{prov.replace(' ', '_')}_utm.csv"
         save_csv(utm_path, gproj[["id", "latitude", "longitude", "x_m", "y_m", "path"]])
 
-        # HDBSCAN clustering
-        labels = run_hdbscan(gproj[["x_m", "y_m"]].to_numpy())
+        # HDBSCAN clustering (with province-specific parameters)
+        labels = run_hdbscan(gproj[["x_m", "y_m"]].to_numpy(), province=prov)
         gproj["cluster_id"] = labels
 
         clusters_path = OUT_DIR / f"province_{prov.replace(' ', '_')}_clusters.csv"
@@ -124,7 +124,6 @@ def main():
 
     SUMMARY_PATH.write_text("\n".join(summary))
     print(f"\nSummary written to {SUMMARY_PATH}")
-    print("Done.")
 
 
 if __name__ == "__main__":

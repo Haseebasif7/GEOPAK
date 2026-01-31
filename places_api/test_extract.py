@@ -1,15 +1,11 @@
 """
-Test script to extract places data (images + lat/long) for ICT (Islamabad Capital Territory), Pakistan
-Focus: OUTDOOR geolocation-relevant places only (no indoor/people photos)
-- Natural features: valleys, mountains, lakes, rivers, viewpoints
-- Outdoor landmarks: forts, monuments, historical sites (exterior views)
-- Outdoor religious sites: mosques/temples (exterior views)
-- Parks, gardens, dams, infrastructure (outdoor)
-- Cities/towns (outdoor views), rural landscapes
-Excludes: restaurants, cafes, hotels, hospitals, markets, shopping malls, indoor places
-Ensures all results are from ICT (validated by bounding box)
-Prevents duplicate entries in CSV and duplicate images
-Target: High-quality images covering Islamabad Capital Territory
+Extract places data for Gilgit-Baltistan, Pakistan - Dataset Augmentation
+Focus: OUTDOOR geolocation-relevant places that help model distinguish Gilgit-Baltistan visually
+- Landscapes: valleys with rivers, partial glacier views, tree-lined villages
+- Human presence: small settlements, stone houses, suspension bridges
+- Seasonal: snowy roads, autumn colors, spring meltwater
+Excludes: Indoor/retail/brand places (noisy)
+Target: ~1000 places with 5 images each = ~5000 images for dataset augmentation
 """
 
 import requests
@@ -31,14 +27,14 @@ PROVINCE_MAPPING_PATH = Path(__file__).parent.parent / 'model' / 'province_mappi
 with open(PROVINCE_MAPPING_PATH, 'r') as f:
     PROVINCE_MAPPING = json.load(f)
 
-# Configuration - ICT (Islamabad Capital Territory), Pakistan (comprehensive: main landmarks, areas)
+# Configuration - Gilgit-Baltistan, Pakistan (Dataset Augmentation - focus on valleys, villages, seasonal variation)
 PROVINCES = {
-    "ICT": 3,  # Islamabad Capital Territory, Pakistan
+    "Gilgit-Baltistan": 4,  # Gilgit-Baltistan, Pakistan
 }
 
 # Search configuration
 MAX_RESULTS_PER_QUERY = 20  # Places API max per query
-TARGET_PLACES_PER_PROVINCE = 1000  # Target places for ICT
+TARGET_PLACES_PER_PROVINCE = 1000  # Target places (5 images each = 5000 images)
 
 # Pakistan bounding box for location restriction (to avoid India results)
 # Approximate bounds for Pakistan: lat 23.5-37.0, lng 60.0-77.8
@@ -49,134 +45,65 @@ PAKISTAN_BOUNDS = {
     "east": 77.8
 }
 
-# ICT (Islamabad Capital Territory) bounding box for strict validation
-# Coverage: Islamabad city, Margalla Hills, and surrounding areas
-# Excludes: Rawalpindi (Punjab), Khyber Pakhtunkhwa, Azad Kashmir
-ICT_BOUNDS = {
-    "south": 33.5,    # min latitude (southern ICT)
-    "west": 72.8,     # min longitude (western border)
-    "north": 33.8,    # max latitude (northern ICT - Margalla Hills)
-    "east": 73.2      # max longitude (eastern border)
+# Gilgit-Baltistan bounding box for validation (approx)
+# Note: Coarse filter to keep results within GB region and avoid India/China.
+GILGIT_BALTISTAN_BOUNDS = {
+    "south": 34.5,
+    "west": 73.0,
+    "north": 37.5,
+    "east": 77.5,
 }
 
-# Specific places to search for ICT (OUTDOOR GEOLOCATION-RELEVANT ONLY)
-# Comprehensive coverage: Islamabad city, Margalla Hills, parks, landmarks, and outdoor areas
-# Excludes: hospitals, markets, shopping areas, restaurants, cafes, hotels, indoor places
+# Specific places to search for Gilgit-Baltistan (FOCUS: Valleys, villages, bridges, seasonal roads)
+# Based on plan.txt: valleys with rivers, partial glaciers, tree-lined villages, small settlements, stone houses, suspension bridges
 PROVINCE_SPECIFIC_PLACES = {
-    "ICT": [
-        # ISLAMABAD - CAPITAL CITY & OUTDOOR LANDMARKS
-        "Islamabad", "Islamabad City", "Islamabad Capital", "Islamabad Capital Territory",
-        "ICT", "Islamabad Pakistan",
-        # FAISAL MOSQUE - MAJOR LANDMARK
-        "Faisal Mosque", "Faisal Mosque Islamabad", "Shah Faisal Mosque",
-        "Faisal Mosque ICT", "Faisal Masjid",
-        # MARGALLA HILLS - NATURAL FEATURE
-        "Margalla Hills", "Margalla Hills Islamabad", "Margalla Hills National Park",
-        "Margalla Hills ICT", "Margalla Range",
-        # DAMAN-E-KOH - VIEWPOINT
-        "Daman-e-Koh", "Daman-e-Koh Islamabad", "Daman-e-Koh Viewpoint",
-        "Daman-e-Koh ICT", "Daman-e-Koh Park",
-        # PIR SOHAWA - VIEWPOINT
-        "Pir Sohawa", "Pir Sohawa Islamabad", "Pir Sohawa Viewpoint",
-        "Pir Sohawa Restaurant", "Pir Sohawa ICT",
-        # MONUMENT & LANDMARKS
-        "Pakistan Monument", "Pakistan Monument Islamabad", "Pakistan Monument Museum",
-        "Pakistan Monument ICT", "National Monument",
-        "Shakarparian", "Shakarparian Islamabad", "Shakarparian Hills",
-        "Shakarparian Cultural Complex", "Shakarparian ICT",
-        # PARKS & GARDENS (OUTDOOR)
-        "Fatima Jinnah Park", "Fatima Jinnah Park Islamabad", "F-9 Park",
-        "F-9 Park Islamabad", "Lake View Park", "Lake View Park Islamabad",
-        "Rawal Lake", "Rawal Lake Islamabad", "Rawal Lake Viewpoint",
-        "Rose and Jasmine Garden", "Rose and Jasmine Garden Islamabad",
-        "Japanese Garden", "Japanese Garden Islamabad",
-        "Daman-e-Koh Park", "Margalla Hills Park",
-        # SECTORS & AREAS (OUTDOOR VIEWS)
-        "F-6 Sector", "F-7 Sector", "F-8 Sector", "F-9 Sector", "F-10 Sector",
-        "G-6 Sector", "G-7 Sector", "G-8 Sector", "G-9 Sector", "G-10 Sector",
-        "E-7 Sector", "E-8 Sector", "E-9 Sector", "E-11 Sector",
-        "D-12 Sector", "I-8 Sector", "I-9 Sector", "I-10 Sector",
-        "Blue Area", "Blue Area Islamabad", "Constitution Avenue",
-        "Constitution Avenue Islamabad", "Jinnah Avenue",
-        # GOVERNMENT BUILDINGS (EXTERIOR VIEWS)
-        "Parliament House", "Parliament House Islamabad", "Parliament Building",
-        "Supreme Court", "Supreme Court Islamabad", "Supreme Court Building",
-        "Prime Minister House", "Prime Minister House Islamabad",
-        "President House", "President House Islamabad", "Aiwan-e-Sadr",
-        # UNIVERSITIES & EDUCATIONAL (OUTDOOR)
-        "Quaid-e-Azam University", "QAU Islamabad", "Quaid-e-Azam University Campus",
-        "National University of Sciences and Technology", "NUST Islamabad",
-        "International Islamic University", "IIU Islamabad",
-        # MUSEUMS & CULTURAL (OUTDOOR)
-        "Lok Virsa Museum", "Lok Virsa Islamabad", "Heritage Museum",
-        "Pakistan Museum of Natural History", "Natural History Museum Islamabad",
-        # AIRPORTS & INFRASTRUCTURE (OUTDOOR)
-        "Islamabad Airport", "Islamabad International Airport", "Benazir Bhutto Airport",
-        "New Islamabad Airport", "Islamabad Airport ICT",
-        # RIVERS & WATER BODIES
-        "Korang River", "Korang River Islamabad", "Soan River",
-        "Soan River Islamabad", "Rawal Dam", "Rawal Dam Islamabad",
-        # TRAILS & HIKING (OUTDOOR)
-        "Trail 3", "Trail 3 Margalla Hills", "Trail 5", "Trail 5 Margalla Hills",
-        "Trail 6", "Trail 6 Margalla Hills", "Margalla Hills Trails",
-        # VIEWPOINTS & SCENIC SPOTS
-        "Monkey Point", "Monkey Point Margalla Hills", "Pir Sohawa Viewpoint",
-        "Daman-e-Koh Viewpoint", "Margalla Hills Viewpoint",
-        # RELIGIOUS SITES (EXTERIOR VIEWS)
-        "Faisal Mosque", "Shah Faisal Mosque", "Lal Masjid", "Lal Masjid Islamabad",
-        "Shah Allah Ditta Caves", "Shah Allah Ditta Caves Islamabad",
-        # CITIES & AREAS (OUTDOOR VIEWS)
-        "Islamabad", "Islamabad City", "ICT", "Islamabad Capital Territory",
-        "Sector F-6", "Sector F-7", "Sector F-8", "Sector G-6", "Sector G-7",
-        # RURAL AREAS & VILLAGES (OUTDOOR LANDSCAPES)
-        "Islamabad Rural", "ICT Villages", "Margalla Hills Villages",
-        "Islamabad Countryside", "ICT Rural Areas",
+    "Gilgit-Baltistan": [
+        # MAJOR VALLEYS & TOWNS (landscapes + small settlements)
+        "Hunza Valley", "Hunza Valley Pakistan", "Hunza Gilgit-Baltistan",
+        "Skardu Valley", "Skardu Gilgit-Baltistan", "Skardu Pakistan",
+        "Gilgit city outskirts", "Gilgit outskirts", "Gilgit River valley",
+        "Nagar Valley Gilgit-Baltistan", "Ghizer Valley Gilgit-Baltistan",
+        "Astore Valley", "Gupis Valley", "Yasin Valley Gilgit-Baltistan",
+        # RIVER & GLACIER LANDSCAPES
+        "Hunza River valley", "Indus River Skardu", "Gilgit River",
+        "Glacier views Hunza", "Glacier views Skardu", "Glacier valley Gilgit-Baltistan",
+        # VILLAGES & STONE HOUSES
+        "Tree-lined villages Gilgit-Baltistan", "Mountain village Gilgit-Baltistan",
+        "Stone houses Gilgit-Baltistan", "Stone village houses Hunza",
+        # BRIDGES
+        "Suspension bridge Hunza", "Suspension bridge Gilgit-Baltistan",
+        "Hussaini suspension bridge", "Hussaini bridge Hunza",
     ],
 }
 
-# Generic search queries (OUTDOOR GEOLOCATION-RELEVANT ONLY)
-# Excludes: restaurants, cafes, hotels, hospitals, markets, shopping malls, indoor places
+# Generic search queries for Gilgit-Baltistan (Based on plan.txt: valleys, villages, seasonal)
+# Focus: Visual features that help distinguish GB but not too restrictive (still exclude retail/indoor)
 GENERIC_SEARCH_QUERIES = [
-    # Natural features and scenic areas (HIGH PRIORITY)
-    "{province} valleys Pakistan",
-    "{province} mountains Pakistan",
-    "{province} lakes Pakistan",
-    "{province} rivers Pakistan",
-    "{province} scenic spots Pakistan",
-    "{province} viewpoints Pakistan",
-    "{province} natural landmarks Pakistan",
-    "{province} waterfalls Pakistan",
-    "{province} peaks Pakistan",
-    # Outdoor landmarks and monuments (HIGH PRIORITY)
-    "{province} forts Pakistan",
-    "{province} historical monuments Pakistan",
-    "{province} archaeological sites Pakistan",
-    "{province} heritage sites Pakistan",
-    "{province} monuments Pakistan",
-    "{province} historical sites Pakistan",
-    # Outdoor religious sites (exterior views) (MEDIUM PRIORITY)
-    "{province} mosques exterior Pakistan",
-    "{province} temples exterior Pakistan",
-    "{province} shrines exterior Pakistan",
-    # Parks and outdoor recreational areas (HIGH PRIORITY)
-    "{province} parks Pakistan",
-    "{province} gardens Pakistan",
-    "{province} national parks Pakistan",
-    "{province} recreational areas Pakistan",
-    # Dams and outdoor infrastructure (MEDIUM PRIORITY)
-    "{province} dams Pakistan",
-    "{province} power stations Pakistan",
-    "{province} bridges Pakistan",
-    "{province} airports Pakistan",
-    # Cities and towns (outdoor views) (MEDIUM PRIORITY)
-    "{province} cities Pakistan",
-    "{province} towns Pakistan",
-    "{province} city views Pakistan",
-    # Rural areas and landscapes (HIGH PRIORITY)
-    "{province} villages Pakistan",
-    "{province} rural areas Pakistan",
-    "{province} countryside Pakistan",
-    "{province} landscapes Pakistan",
+    # LANDSCAPES (plan.txt)
+    "{province} valleys with rivers Pakistan",
+    "{province} river valley Pakistan",
+    "{province} mountain valley river Pakistan",
+    "{province} glacier valley Pakistan",
+    "{province} partial glacier views Pakistan",
+    # VILLAGES & HOUSES (plan.txt)
+    "{province} tree-lined villages Pakistan",
+    "{province} mountain villages Pakistan",
+    "{province} stone houses Pakistan",
+    "{province} small settlements Pakistan",
+    "{province} hillside villages Pakistan",
+    # BRIDGES (plan.txt)
+    "{province} suspension bridges Pakistan",
+    "{province} suspension bridge valley Pakistan",
+    "{province} river suspension bridge Pakistan",
+    # SEASONAL (plan.txt)
+    "{province} snowy roads Pakistan",
+    "{province} autumn colors Pakistan",
+    "{province} autumn valley Pakistan",
+    "{province} spring meltwater Pakistan",
+    # GENERAL LANDSCAPES (looser, but still non-retail)
+    "{province} scenic valley Pakistan",
+    "{province} mountain road Pakistan",
+    "{province} river road Pakistan",
 ]
 
 # Rate limiting (to avoid hitting API limits and control costs)
@@ -206,7 +133,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 IMAGES_DIR = Path("/Users/haseeb/Desktop/datasets/pakistan_images/places_api_images")
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
-CSV_PATH = OUTPUT_DIR / "ict.csv"
+CSV_PATH = OUTPUT_DIR / "gilgit_baltistan.csv"
 
 # Places API endpoint
 PLACES_URL = "https://places.googleapis.com/v1/places:searchText"
@@ -220,19 +147,20 @@ def is_in_pakistan(location):
     return (PAKISTAN_BOUNDS['south'] <= lat <= PAKISTAN_BOUNDS['north'] and
             PAKISTAN_BOUNDS['west'] <= lng <= PAKISTAN_BOUNDS['east'])
 
-def is_in_ict(location):
-    """Check if location is within ICT (Islamabad Capital Territory) bounds"""
+def is_in_gilgit_baltistan(location):
+    """Check if location is within Gilgit-Baltistan bounds"""
     if not location:
         return False
     lat = location.get('latitude', 0)
     lng = location.get('longitude', 0)
-    return (ICT_BOUNDS['south'] <= lat <= ICT_BOUNDS['north'] and
-            ICT_BOUNDS['west'] <= lng <= ICT_BOUNDS['east'])
+    return (GILGIT_BALTISTAN_BOUNDS['south'] <= lat <= GILGIT_BALTISTAN_BOUNDS['north'] and
+            GILGIT_BALTISTAN_BOUNDS['west'] <= lng <= GILGIT_BALTISTAN_BOUNDS['east'])
 
 def is_geolocation_relevant(place):
     """
-    Filter places to keep only those useful for geolocation (outdoor, landscape, landmarks)
-    Excludes: restaurants, cafes, hotels, hospitals, markets, shopping malls, indoor places
+    Filter places to keep only those useful for geolocation (outdoor, landscape, infrastructure)
+    Includes: Valleys with rivers, partial glaciers, villages, stone houses, suspension bridges (GB-specific)
+    Excludes: Indoor/retail/brands and other noisy categories
     """
     if not place:
         return False
@@ -240,20 +168,23 @@ def is_geolocation_relevant(place):
     display_name = place.get('displayName', {}).get('text', '').lower()
     formatted_address = place.get('formattedAddress', '').lower()
     full_text = f"{display_name} {formatted_address}".lower()
+    types = [t.lower() for t in (place.get("types") or []) if isinstance(t, str)]
     
-    # Keywords that indicate indoor/people-focused places (EXCLUDE)
+    # Keywords that indicate indoor/people-focused / brand / retail places (EXCLUDE)
     exclude_keywords = [
         'restaurant', 'cafe', 'café', 'hotel', 'motel', 'resort', 'lodge',
         'hospital', 'clinic', 'medical', 'pharmacy', 'drugstore',
-        'market', 'bazaar', 'shopping', 'mall', 'store', 'shop', 'retail',
-        'commercial area', 'commercial center', 'shopping center', 'shopping mall',
         'indoor', 'interior', 'inside',
-        'restaurant', 'dining', 'food', 'eatery', 'fast food',
+        'dining', 'food', 'eatery', 'fast food',
         'gym', 'fitness', 'spa', 'salon', 'barber',
         'cinema', 'theater', 'movie', 'entertainment center',
-        'office', 'business center', 'corporate',
-        'apartment', 'residential complex', 'housing',
         'library', 'museum', 'gallery', 'exhibition',
+        # retail / brands / stores (usually indoor + noisy for province)
+        'mall', 'shopping', 'store', 'shop', 'outlet', 'boutique', 'brand',
+        'plaza', 'center', 'centre', 'supermarket', 'hypermarket', 'mart',
+        'cash and carry', 'cash & carry', 'electronics', 'mobile', 'phones',
+        'clothing', 'fashion', 'jewelry', 'jewellery', 'shoes',
+        'bakery', 'sweets', 'sweet', 'restaurant', 'cafe',
     ]
     
     # Check if place name contains any exclude keywords
@@ -261,16 +192,55 @@ def is_geolocation_relevant(place):
         if keyword in full_text:
             return False
     
-    # Keywords that indicate outdoor/geolocation-relevant places (INCLUDE)
+    # Hard-exclude by Places types (more reliable than name matching)
+    # NOTE: These are Places API "types" strings when available.
+    exclude_types = {
+        "shopping_mall",
+        "department_store",
+        "clothing_store",
+        "shoe_store",
+        "jewelry_store",
+        "electronics_store",
+        "grocery_store",
+        "supermarket",
+        "store",
+        "convenience_store",
+        "restaurant",
+        "cafe",
+        "bar",
+        "night_club",
+        "lodging",
+        "hospital",
+        "pharmacy",
+        "drugstore",
+        "gym",
+        "beauty_salon",
+        "spa",
+        "movie_theater",
+        "museum",
+        "art_gallery",
+        "library",
+    }
+    if any(t in exclude_types for t in types):
+        return False
+
+    # Keywords that indicate outdoor/geolocation-relevant places (INCLUDE) - Gilgit-Baltistan-specific
     include_keywords = [
-        'valley', 'mountain', 'lake', 'river', 'waterfall', 'peak', 'hill',
-        'fort', 'monument', 'temple', 'mosque', 'shrine', 'archaeological',
-        'park', 'garden', 'national park', 'viewpoint', 'scenic',
-        'dam', 'bridge', 'airport', 'railway station', 'power station',
-        'village', 'rural', 'countryside', 'landscape',
-        'city', 'town', 'district', 'capital',
-        'historical site', 'heritage site', 'ruins',
-        'beach', 'coast', 'island',
+        # Landscapes (plan.txt)
+        'valley', 'valleys', 'river valley', 'river', 'rivers',
+        'glacier', 'glaciers', 'glacier view', 'glacier views',
+        # Villages & houses (plan.txt)
+        'village', 'villages', 'tree-lined village', 'tree-lined villages',
+        'stone house', 'stone houses', 'stone-built', 'stone built',
+        'small settlement', 'small settlements', 'settlement', 'settlements',
+        # Bridges (plan.txt)
+        'suspension bridge', 'suspension bridges',
+        # Seasonal (plan.txt)
+        'snowy road', 'snowy roads', 'snow covered road', 'snow covered roads',
+        'autumn color', 'autumn colors', 'autumn valley',
+        'spring meltwater', 'meltwater',
+        # General outdoor
+        'landscape', 'outdoor', 'scenic', 'mountain', 'mountains',
     ]
     
     # If it contains include keywords, it's likely geolocation-relevant
@@ -278,9 +248,17 @@ def is_geolocation_relevant(place):
         if keyword in full_text:
             return True
     
-    # For generic place names (like city names), include them (they likely have outdoor views)
-    # But exclude if they have exclude keywords
-    return True
+    # Looser fallback for GB: if clearly in GB and not indoor/retail, keep it
+    gb_markers = [
+        'gilgit-baltistan', 'gilgit baltistan',
+        'gilgit', 'skardu', 'hunza', 'nagar', 'ghizer', 'gupis',
+        'yasin', 'astore', 'diamir', 'ghanche',
+    ]
+    if any(m in full_text for m in gb_markers):
+        return True
+    
+    # Otherwise drop
+    return False
 
 def search_places(query_text, max_results=20, restrict_to_pakistan=True):
     """
@@ -291,7 +269,7 @@ def search_places(query_text, max_results=20, restrict_to_pakistan=True):
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": GOOGLE_API_KEY,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.photos,places.formattedAddress"
+        "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.photos,places.formattedAddress,places.types"
     }
     
     payload = {
@@ -299,7 +277,7 @@ def search_places(query_text, max_results=20, restrict_to_pakistan=True):
         "maxResultCount": min(max_results, MAX_RESULTS_PER_QUERY)
     }
     
-    # Add location restriction for Pakistan (especially important for Punjab to avoid India)
+        # Add location restriction for Pakistan (especially important for border provinces to avoid India)
     if restrict_to_pakistan:
         payload["locationRestriction"] = {
             "rectangle": {
@@ -402,7 +380,7 @@ def load_existing_place_ids():
     existing_ids = set()
     existing_base_ids = set()  # Base IDs without suffix (e.g., ChIJ1234 from ChIJ1234_1)
     
-    # Check current CSV file (ict.csv)
+    # Check current CSV file
     if CSV_PATH.exists():
         try:
             df = pd.read_csv(CSV_PATH)
@@ -487,24 +465,19 @@ def load_existing_image_filenames():
     return existing_images
 
 def extract_places_data():
-    """Extract places data for ICT (Islamabad Capital Territory), Pakistan
-    Focus: OUTDOOR geolocation-relevant places only (no indoor/people photos)
-    - Natural features: valleys, mountains, lakes, rivers, viewpoints
-    - Outdoor landmarks: forts, monuments, historical sites (exterior views)
-    - Outdoor religious sites: mosques/temples (exterior views)
-    - Parks, gardens, dams, infrastructure (outdoor)
-    - Cities/towns (outdoor views), rural landscapes
-    Excludes: restaurants, cafes, hotels, hospitals, markets, shopping malls, indoor places
-    Validates all results are within ICT bounds (excludes Rawalpindi/Punjab, KPK, Azad Kashmir)
-    Prevents duplicate entries in CSV and duplicate images
-    Target: High-quality images covering Islamabad Capital Territory
+    """Extract places data for Gilgit-Baltistan, Pakistan - Dataset Augmentation
+    Focus: OUTDOOR geolocation-relevant places that help model distinguish Gilgit-Baltistan visually
+    - Landscapes: valleys with rivers, partial glacier views, tree-lined villages
+    - Human presence: small settlements, stone houses, suspension bridges
+    - Seasonal: snowy roads, autumn colors, spring meltwater
+    Excludes: Indoor/retail/brands (noisy)
+    Target: ~1000 places with 5 images each = ~5000 images for dataset augmentation
     """
     print("=" * 70)
-    print("Places API - Data Extraction for ICT (Islamabad Capital Territory), Pakistan")
-    print("Focus: OUTDOOR geolocation-relevant places only")
-    print("Excludes: restaurants, cafes, hotels, hospitals, markets, indoor places")
-    print("Duplicate Prevention: CSV entries and images")
-    print("ICT Bounds Validation: Strict filtering to ensure all results are within ICT")
+    print("Places API - Data Extraction for Gilgit-Baltistan, Pakistan (Dataset Augmentation)")
+    print("Focus: Valleys, villages, bridges, seasonal variation")
+    print("Excludes: Indoor/retail/brand places (noisy)")
+    print("Target: ~1000 places × 5 images = ~5000 images")
     print("=" * 70)
     
     if not GOOGLE_API_KEY:
@@ -519,10 +492,12 @@ def extract_places_data():
     # Load existing image filenames to prevent duplicate downloads
     existing_image_filenames = load_existing_image_filenames()
     
-    print(f"\n📋 Processing: ICT (Islamabad Capital Territory), Pakistan")
-    print(f"   ⚠️  IMPORTANT: Strict ICT bounds validation (excludes Rawalpindi/Punjab, KPK, Azad Kashmir)")
+    print(f"\n📋 Processing: Gilgit-Baltistan, Pakistan (Dataset Augmentation)")
+    print(f"   Focus: Valleys with rivers, villages, bridges, seasonal variation")
     print(f"\n⚙️  Configuration:")
     print(f"   Target places per province: {TARGET_PLACES_PER_PROVINCE}")
+    print(f"   Images per place: 5")
+    print(f"   Total target images: ~{TARGET_PLACES_PER_PROVINCE * 5}")
     print(f"   Max results per query: {MAX_RESULTS_PER_QUERY}")
     print(f"   Image quality: High (1600px width, 95% JPEG quality)")
     total_specific_places = sum(len(places) for places in PROVINCE_SPECIFIC_PLACES.values())
@@ -531,7 +506,7 @@ def extract_places_data():
     print(f"   Rate limiting: {DELAY_BETWEEN_QUERIES}s between queries, {DELAY_BETWEEN_DOWNLOADS}s between downloads")
     print(f"   Existing places to skip: {len(existing_place_ids)}")
     print(f"   Pakistan bounds: (lat: {PAKISTAN_BOUNDS['south']}-{PAKISTAN_BOUNDS['north']}, lng: {PAKISTAN_BOUNDS['west']}-{PAKISTAN_BOUNDS['east']})")
-    print(f"   ICT bounds (strict): (lat: {ICT_BOUNDS['south']}-{ICT_BOUNDS['north']}, lng: {ICT_BOUNDS['west']}-{ICT_BOUNDS['east']})")
+    print(f"   Gilgit-Baltistan bounds: (lat: {GILGIT_BALTISTAN_BOUNDS['south']}-{GILGIT_BALTISTAN_BOUNDS['north']}, lng: {GILGIT_BALTISTAN_BOUNDS['west']}-{GILGIT_BALTISTAN_BOUNDS['east']})")
     print("\n" + "-" * 70)
     
     all_places = []
@@ -551,11 +526,11 @@ def extract_places_data():
                 if len(all_province_places) >= TARGET_PLACES_PER_PROVINCE:
                     break
                 
-                # Search for this specific place - ALWAYS include "Pakistan" for ICT
-                query = f"{place_name} Islamabad Pakistan"  # Explicitly specify Pakistan
+                # Search for this specific place - include province to reduce drift
+                query = f"{place_name} Gilgit-Baltistan Pakistan"
                 print(f"   Query: '{query}'...")
                 
-                # Always restrict to Pakistan for ICT searches
+                # Always restrict to Pakistan
                 places = search_places(query, max_results=MAX_RESULTS_PER_QUERY, restrict_to_pakistan=True)
                 time.sleep(DELAY_BETWEEN_QUERIES)  # Rate limiting between queries
                 
@@ -582,7 +557,7 @@ def extract_places_data():
                 query = query_template.format(province=province_name)
                 print(f"   Query: '{query}'...")
                 
-                # Always restrict to Pakistan for ICT searches
+                # Always restrict to Pakistan
                 places = search_places(query, max_results=MAX_RESULTS_PER_QUERY, restrict_to_pakistan=True)
                 time.sleep(DELAY_BETWEEN_QUERIES)  # Rate limiting between queries
                 
@@ -590,21 +565,21 @@ def extract_places_data():
                     continue
                 
                 # Add unique places (skip if base place ID already exists in CSV)
-                # Also validate ICT bounds before adding
+                # Also validate Gilgit-Baltistan bounds before adding
                 for place in places:
                     place_id = place.get('id', '')
                     location = place.get('location', {})
                     # Check if base place ID (without suffix) already exists
-                    # AND validate it's within ICT bounds
+                    # AND validate it's within Gilgit-Baltistan bounds
                     if place_id and place_id not in seen_place_ids and place_id not in existing_base_ids:
-                        if is_in_ict(location):
+                        if is_in_gilgit_baltistan(location):
                             seen_place_ids.add(place_id)
                             all_province_places.append(place)
                         else:
                             display_name = place.get('displayName', {}).get('text', 'Unknown')
                             lat = location.get('latitude', 0)
                             lng = location.get('longitude', 0)
-                            print(f"      ⚠️  Skipping {display_name} - outside ICT bounds (lat: {lat:.4f}, lng: {lng:.4f})")
+                            print(f"      ⚠️  Skipping {display_name} - outside Gilgit-Baltistan bounds (lat: {lat:.4f}, lng: {lng:.4f})")
                 
                 print(f"   Found {len(places)} places ({len(all_province_places)} unique so far)")
         
@@ -616,11 +591,11 @@ def extract_places_data():
                 if len(all_province_places) >= TARGET_PLACES_PER_PROVINCE:
                     break
                 
-                # Try different query variations for each city - ALWAYS include Pakistan for ICT
+                # Try different query variations for each seed term
                 city_queries = [
-                    f"{city} Islamabad Pakistan",
-                    f"{city} Islamabad Pakistan places",
-                    f"{city} Islamabad Pakistan attractions",
+                    f"{city} Gilgit-Baltistan Pakistan",
+                    f"{city} Gilgit-Baltistan Pakistan landscape",
+                    f"{city} Gilgit-Baltistan Pakistan valley",
                 ]
                 
                 for query in city_queries:
@@ -628,7 +603,7 @@ def extract_places_data():
                         break
                     
                     print(f"   Query: '{query}'...")
-                    # Always restrict to Pakistan for ICT searches
+                    # Always restrict to Pakistan
                     places = search_places(query, max_results=MAX_RESULTS_PER_QUERY, restrict_to_pakistan=True)
                     time.sleep(DELAY_BETWEEN_QUERIES)
                     
@@ -636,19 +611,19 @@ def extract_places_data():
                         continue
                     
                     # Add unique places (skip if already exists in CSV)
-                    # Also validate ICT bounds before adding
+                    # Also validate Gilgit-Baltistan bounds before adding
                     for place in places:
                         place_id = place.get('id', '')
                         location = place.get('location', {})
                         if place_id and place_id not in seen_place_ids and place_id not in existing_place_ids:
-                            if is_in_ict(location):
+                            if is_in_gilgit_baltistan(location):
                                 seen_place_ids.add(place_id)
                                 all_province_places.append(place)
                             else:
                                 display_name = place.get('displayName', {}).get('text', 'Unknown')
                                 lat = location.get('latitude', 0)
                                 lng = location.get('longitude', 0)
-                                print(f"      ⚠️  Skipping {display_name} - outside ICT bounds (lat: {lat:.4f}, lng: {lng:.4f})")
+                                print(f"      ⚠️  Skipping {display_name} - outside Gilgit-Baltistan bounds (lat: {lat:.4f}, lng: {lng:.4f})")
                     
                     print(f"   Found {len(places)} places ({len(all_province_places)} unique so far)")
         
@@ -680,9 +655,9 @@ def extract_places_data():
                 print(f"    ⚠️  Skipping {display_name} - location outside Pakistan bounds")
                 continue
             
-            # Strict validation: Must be within ICT bounds
-            if not is_in_ict(location):
-                print(f"    ⚠️  Skipping {display_name} - location outside ICT bounds (lat: {lat:.4f}, lng: {lng:.4f})")
+            # Strict validation: Must be within Gilgit-Baltistan bounds
+            if not is_in_gilgit_baltistan(location):
+                print(f"    ⚠️  Skipping {display_name} - location outside Gilgit-Baltistan bounds (lat: {lat:.4f}, lng: {lng:.4f})")
                 continue
             
             # Normalize province name according to mapping

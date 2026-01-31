@@ -28,11 +28,7 @@ if __name__ == '__main__':
     csv_path = 'train.csv'
     batch_size = 64
     
-    print("=" * 70)
     print("GEOPAK TRAINING SETUP")
-    print("=" * 70)
-    
-    print(f"\n📦 Step 2: Creating datasets...")
     
     train_transform = get_train_transforms()
     
@@ -40,14 +36,6 @@ if __name__ == '__main__':
         csv_path=str(csv_path),
         transform=train_transform
     )
- 
-    print(f"   Train dataset: {len(train_dataset):,} samples")
-    
-    # Step 3: Create balanced batch sampler
-    print(f"\n⚖️  Step 3: Creating balanced batch sampler...")
-    print(f"   Batch composition (batch_size={batch_size}):")
-    for province, count in DEFAULT_BATCH_SPLIT.items():
-        print(f"      {province:<25} {count:>3} samples")
     
     balanced_sampler = ProvinceBalancedBatchSampler(
         dataset=train_dataset,
@@ -56,9 +44,6 @@ if __name__ == '__main__':
         shuffle=True,
         seed=42
     )
-    
-    # Step 4: Create data loaders
-    print(f"\n🔄 Step 4: Creating data loaders...")
     
     train_loader = DataLoader(
         train_dataset,
@@ -86,5 +71,4 @@ if __name__ == '__main__':
         if batch_idx >= 0:
             break
     
-    print("\n✅ Setup complete! Ready for training.")
-    print("=" * 70)
+    print("Setup complete! Ready for training.")

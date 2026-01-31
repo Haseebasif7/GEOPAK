@@ -1,7 +1,4 @@
-"""
-Balanced batch sampler for province-aware training
-Ensures each batch has the specified distribution of provinces
-"""
+"""Balanced batch sampler for province-aware training"""
 from torch.utils.data import Sampler
 import numpy as np
 from collections import defaultdict
@@ -9,21 +6,7 @@ import random
 
 
 class ProvinceBalancedBatchSampler(Sampler):
-    """
-    Sampler that ensures each batch has a balanced distribution of provinces.
-    
-    IMPORTANT: Allows image repetition within an epoch (especially for small provinces).
-    This is standard practice for imbalanced datasets and ensures all data is used.
-    
-    Batch composition for batch size = 64:
-    - Sindh: 16 samples
-    - Punjab: 8
-    - Khyber Pakhtunkhwa: 8
-    - ICT: 8
-    - Balochistan: 8
-    - Gilgit-Baltistan: 8
-    - Azad Kashmir: 8
-    """
+    """Sampler that ensures each batch has a balanced distribution of provinces."""
     
     def __init__(self, dataset, province_batch_split, batches_per_epoch=1300, shuffle=True, seed=42):
         """
@@ -52,47 +35,17 @@ class ProvinceBalancedBatchSampler(Sampler):
             province = row.get('province', 'Unknown')
             self.province_indices[province].append(idx)
         
-        # Show province sample counts
-        print(f"\n📊 Province sample counts:")
+        # Verify all provinces have samples (silently)
         for province, required in province_batch_split.items():
             available = len(self.province_indices.get(province, []))
-            print(f"   {province:<25} Required/batch: {required:>3}, Available: {available:>6,}")
             if available == 0:
                 raise ValueError(f"No samples found for province: {province}")
         
         # Set number of batches (fixed, not limited by rarest province)
         self.num_batches = batches_per_epoch
-        
-        # Calculate repetition statistics
-        total_samples_needed = self.num_batches * self.batch_size
-        total_samples_available = len(dataset)
-        
-        print(f"\n✅ Sampler initialized:")
-        print(f"   Batch size: {self.batch_size}")
-        print(f"   Batches per epoch: {self.num_batches:,}")
-        print(f"   Total samples per epoch: {self.num_batches * self.batch_size:,}")
-        print(f"   Total samples available: {total_samples_available:,}")
-        
-        if total_samples_needed > total_samples_available:
-            repetition_factor = total_samples_needed / total_samples_available
-            print(f"   ⚠️  Repetition factor: {repetition_factor:.2f}x (images will repeat)")
-        else:
-            print(f"   ✅ No repetition needed (all images used once)")
-        
-        # Show expected repetitions per province
-        print(f"\n📈 Expected repetitions per province:")
-        for province, required_per_batch in province_batch_split.items():
-            available = len(self.province_indices.get(province, []))
-            needed_per_epoch = self.num_batches * required_per_batch
-            if available > 0:
-                repetitions = needed_per_epoch / available
-                print(f"   {province:<25} {repetitions:>5.2f}x per epoch")
     
     def __iter__(self):
-        """
-        Generate batches with balanced province distribution.
-        ALLOWS REPETITION - samples with replacement for small provinces.
-        """
+        """Generate batches with balanced province distribution."""
         # Set random seed for reproducibility (but allow different order each epoch)
         # Use epoch number if available, otherwise use base seed
         epoch_seed = self.seed

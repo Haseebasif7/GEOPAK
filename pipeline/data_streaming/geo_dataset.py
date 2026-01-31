@@ -18,10 +18,55 @@ class GeopakDataset(Dataset):
     
     def _load_from_local(self, local_path):
         """Load image from local filesystem"""
+        path_str = str(local_path)
         path = Path(local_path)
         
-        # Handle absolute paths
-        if path.is_absolute():
+        # Detect if we're on Modal
+        is_modal = Path('/data/datasets').exists()
+        
+        # Handle paths that reference datasets directory
+        if '/Users/haseeb/Desktop/datasets' in path_str:
+            modal_path_str = path_str.replace('/Users/haseeb/Desktop/datasets', '/data/datasets')
+            modal_path = Path(modal_path_str)
+            
+            if is_modal:
+                if modal_path.exists():
+                    path = modal_path
+                else:
+                    return None
+            else:
+                if path.exists():
+                    pass
+                elif modal_path.exists():
+                    path = modal_path
+                else:
+                    return None
+        # Case 2: Relative path starting with datasets/
+        elif path_str.startswith('datasets/'):
+            # Convert relative path to Modal path
+            modal_path_str = '/data/' + path_str
+            modal_path = Path(modal_path_str)
+            
+            # Also try with /Users/haseeb/Desktop/ prefix for local
+            local_abs_path = Path('/Users/haseeb/Desktop') / path_str
+            
+            if is_modal:
+                if modal_path.exists():
+                    path = modal_path
+                else:
+                    return None
+            else:
+                # Local: try local absolute path first
+                if local_abs_path.exists():
+                    path = local_abs_path
+                elif path.exists():
+                    pass  # Use relative path as-is
+                elif modal_path.exists():
+                    path = modal_path
+                else:
+                    return None
+        elif path.is_absolute():
+            # Other absolute paths - check if they exist
             if not path.exists():
                 return None
         else:
@@ -35,7 +80,12 @@ class GeopakDataset(Dataset):
                 if cwd_path.exists():
                     path = cwd_path
                 else:
-                    return None
+                    # Try with /Users/haseeb/Desktop/ prefix
+                    desktop_path = Path('/Users/haseeb/Desktop') / path
+                    if desktop_path.exists():
+                        path = desktop_path
+                    else:
+                        return None
         
         # Load the image
         try:
@@ -52,21 +102,44 @@ class GeopakDataset(Dataset):
         # Load image
         image = self._load_from_local(path)
         
-        # If image fails to load, return None (will be filtered by collate_fn)
+        # If image fails to load, return dict with None image but keep ID for logging
         if image is None:
-            return None
+            result = {
+                'image': None,
+                'id': image_id,
+                'latitude': float(row['latitude']),
+                'longitude': float(row['longitude']),
+                'province': row['province'],
+                'path': path  # Include path for debugging
+            }
+            
+            # Add cell_id and province_id if available
+            if 'cell_id' in row:
+                result['cell_id'] = int(row['cell_id'])
+            if 'province_id' in row:
+                result['province_id'] = int(row['province_id'])
+            
+            return result
         
         # Apply transforms
         if self.transform:
             image = self.transform(image)
         
-        return {
+        result = {
             'image': image,
             'id': image_id,
             'latitude': float(row['latitude']),
             'longitude': float(row['longitude']),
             'province': row['province']
         }
+        
+        # Add cell_id and province_id if available (needed for Phase 1)
+        if 'cell_id' in row:
+            result['cell_id'] = int(row['cell_id'])
+        if 'province_id' in row:
+            result['province_id'] = int(row['province_id'])
+        
+        return result
 
     def __len__(self):
         return len(self.df)

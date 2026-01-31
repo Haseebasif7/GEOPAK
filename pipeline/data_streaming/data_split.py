@@ -1,6 +1,4 @@
-"""
-Dataset splitting utilities for train/test split
-"""
+"""Dataset splitting utilities for train/test split"""
 import pandas as pd
 from pathlib import Path
 import numpy as np
@@ -20,13 +18,11 @@ def create_train_test_split(csv_path, test_size=0.1, random_state=42, output_dir
     Returns:
         train_df, test_df: DataFrames for train and test sets
     """
-    print("=" * 70)
     print("CREATING TRAIN/TEST SPLIT")
-    print("=" * 70)
     
     # Load full dataset
     df = pd.read_csv(csv_path)
-    print(f"\n📊 Full dataset: {len(df):,} samples")
+    print(f"Full dataset: {len(df):,} samples")
     
     # Show province distribution
     if 'province' in df.columns:
@@ -52,9 +48,7 @@ def create_train_test_split(csv_path, test_size=0.1, random_state=42, output_dir
             random_state=random_state
         )
     
-    print(f"\n✅ Split complete:")
-    print(f"   Train: {len(train_df):,} samples ({len(train_df)/len(df)*100:.1f}%)")
-    print(f"   Test:  {len(test_df):,} samples ({len(test_df)/len(df)*100:.1f}%)")
+    print(f"Split complete: Train: {len(train_df):,} samples, Test: {len(test_df):,} samples")
     
     # Show province distribution in splits
     if 'province' in df.columns:
@@ -83,9 +77,7 @@ def create_train_test_split(csv_path, test_size=0.1, random_state=42, output_dir
     train_df.to_csv(train_csv, index=False)
     test_df.to_csv(test_csv, index=False)
     
-    print(f"\n💾 Saved splits:")
-    print(f"   Train: {train_csv}")
-    print(f"   Test:  {test_csv}")
+    print(f"Saved splits: Train: {train_csv}, Test: {test_csv}")
     
     return train_df, test_df
 

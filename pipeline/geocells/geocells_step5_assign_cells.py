@@ -1,28 +1,4 @@
-"""
-Step 9 — Assign final training fields
-
-For each image in merged_training_data_with_province.csv:
-  - Attach province_id
-  - Attach cell_id (global)
-  - Attach cell_center_lat, cell_center_lon
-
-Inputs:
-  - merged_training_data_with_province.csv
-      columns (at least): id, latitude, longitude, province, path
-  - pipeline/geocells/cell_metadata.csv
-  - pipeline/geocells/province_<name>_clusters_final.csv
-
-Outputs:
-  - merged_training_data_with_cells.csv
-      columns:
-        id, latitude, longitude, province,
-        province_id, cell_id, cell_center_lat, cell_center_lon, path, ...
-
-Original merged_training_data_with_province.csv is NOT modified.
-
-Run manually from repo root:
-    python pipeline/geocells_step5_assign_cells.py
-"""
+"""Step 9 — Assign final training fields"""
 
 from __future__ import annotations
 
@@ -34,8 +10,8 @@ import pandas as pd
 
 GEOCELLS_DIR = Path("pipeline/geocells")
 CELL_METADATA_PATH = GEOCELLS_DIR / "cell_metadata.csv"
-INPUT_CSV = Path("merged_training_data_with_province_backup_before_ICT_fix.csv")
-OUTPUT_CSV = Path("merged_training_data_with_cells.csv")
+INPUT_CSV = Path("final_cleaned_merged.csv")
+OUTPUT_CSV = Path("final_cleaned_with_cells_1.csv")
 
 
 def _load_cell_metadata() -> pd.DataFrame:

@@ -296,7 +296,7 @@ Use **effective-number weighting**, not raw inverse frequency.
    ```
 
 Where:
-* `β = 0.999` (smoothing factor)
+* `β = 0.9995` (smoothing factor)
 * `n_p` = number of samples in province `p`
 
 **Why this works:**
@@ -304,21 +304,6 @@ Where:
 * More stable than raw inverse frequency
 * Better generalization for imbalanced classes
 * Normalization ensures weights are on a reasonable scale
-
-**✅ Correct Approximate Weights** (based on current dataset):
-
-| Province | Samples | Final Weight (≈) |
-|--------|---------|------------------|
-| Sindh | 64,925 | 0.25–0.30 |
-| Punjab | 7,458 | 0.9–1.0 |
-| KPK | 4,958 | 1.1–1.2 |
-| ICT | 4,707 | 1.1–1.2 |
-| Balochistan | 3,624 | 1.3–1.4 |
-| Gilgit-Baltistan | 2,154 | 1.6–1.8 |
-| Azad Kashmir | 1,075 | 2.1–2.4 |
-
-👉 **This is the correct scale.**
-⚠️ **Anything above ~3 is a red flag** — indicates incorrect calculation or normalization.
 
 **Implementation:**
 
@@ -370,8 +355,20 @@ For true cell `c`:
 ```
 y_i = exp( -dist_km(c, i) / τ )
 ```
+TAU_BY_PROVINCE = {
+    "ICT": 10.0,
+    "Sindh": 30.0,
+    "Punjab": 60.0,
+    "Khyber Pakhtunkhwa": 50.0,
+    "Azad Kashmir": 40.0,
+    "Gilgit-Baltistan": 100.0,
+    "Balochistan": 100.0,
+}
 
-* τ = **60 km**
+tau = TAU_BY_PROVINCE[province]
+y_i = exp(-distance_km(true_cell, i) / tau)
+y = y / y.sum()
+
 * Apply only to neighbor cells
 * Renormalize
 

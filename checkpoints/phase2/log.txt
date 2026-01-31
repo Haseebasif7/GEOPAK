@@ -1,0 +1,340 @@
+======================================================================
+GEOPAK PHASE 2 TRAINING - Partial Vision Adaptation
+======================================================================
+
+🖥️  Device: cuda
+   Found scene model: /root/geopak/resnet50_places365.pth.tar
+
+📂 Loading Phase 1 checkpoint...
+   Phase 1 epoch: 30
+   Phase 1 val error: unknown
+   Temperature: 1.0
+
+🔓 Unfreezing encoder layers...
+   Total unfrozen encoder params: 36,229,888
+
+📦 Loading datasets...
+   Train: 81,462 samples
+   Val:   9,053 samples
+
+⚖️  Calculating province weights...
+
+Province Weights:
+   Sindh                     Count: 58,697, Weight:  0.73
+   Punjab                    Count:  7,611, Weight:  0.74
+   Khyber Pakhtunkhwa        Count:  4,810, Weight:  0.80
+   ICT                       Count:  3,971, Weight:  0.84
+   Gilgit-Baltistan          Count:  2,141, Weight:  1.10
+   Balochistan               Count:  3,265, Weight:  0.90
+   Azad Kashmir              Count:    967, Weight:  1.89
+
+📊 Creating loss function...
+
+🔄 Creating data loaders...
+
+⚙️  Creating optimizer with parameter groups...
+   Using Cosine Annealing LR schedule
+
+🚀 Starting Phase 2 training...
+   Epochs: 30
+   Learning rates:
+     - Heads: 0.0005
+     - Embeddings: 0.0005
+     - Fusion: 0.0005
+     - CLIP: 1e-05
+     - Scene: 5e-06
+   Weight decay: 1e-05
+======================================================================
+   Current LRs: [0.0004986304738420684, 0.0004986304738420684, 0.0004986304738420684, 9.972609476841368e-06, 4.986304738420684e-06]
+
+Epoch 1/30:
+   Train Loss: 120.4882 (prov: 0.2887, cell: 3.3858, off: 5.4903, aux: 111.3234)
+   Val Loss:   191.5185 (prov: 0.7808, cell: 10.4867, off: 8.4322, aux: 171.8188)
+   Train Error: median=2.06km, mean=5.49km, p90=13.21km
+   Val Error:   median=3.20km, mean=8.44km, p90=21.02km
+
+Train Accuracy by Province:
+   Sindh                     93.89%
+   Punjab                    75.83%
+   Khyber Pakhtunkhwa        77.46%
+   ICT                       85.82%
+   Gilgit-Baltistan          95.95%
+   Balochistan               90.76%
+   Azad Kashmir              99.12%
+
+Val Accuracy by Province:
+   Sindh                     93.19%
+   Punjab                    60.73%
+   Khyber Pakhtunkhwa        55.24%
+   ICT                       56.49%
+   Gilgit-Baltistan          63.45%
+   Balochistan               53.04%
+   Azad Kashmir              46.30%
+🏆 New best validation median error: 3.20km (improved by infkm)
+======================================================================
+   Current LRs: [0.0004945369001834514, 0.0004945369001834514, 0.0004945369001834514, 9.890738003669029e-06, 4.9453690018345144e-06]
+
+Epoch 2/30:
+   Train Loss: 105.0691 (prov: 0.2233, cell: 2.5760, off: 5.2444, aux: 97.0255)
+   Val Loss:   198.9106 (prov: 0.7985, cell: 10.7684, off: 8.4731, aux: 178.8706)
+   Train Error: median=2.01km, mean=5.24km, p90=12.63km
+   Val Error:   median=3.23km, mean=8.48km, p90=21.10km
+
+Train Accuracy by Province:
+   Sindh                     94.61%
+   Punjab                    80.68%
+   Khyber Pakhtunkhwa        82.20%
+   ICT                       88.82%
+   Gilgit-Baltistan          97.20%
+   Balochistan               93.65%
+   Azad Kashmir              99.07%
+
+Val Accuracy by Province:
+   Sindh                     93.29%
+   Punjab                    59.20%
+   Khyber Pakhtunkhwa        52.43%
+   ICT                       59.68%
+   Gilgit-Baltistan          63.03%
+   Balochistan               52.21%
+   Azad Kashmir              45.37%
+======================================================================
+   Current LRs: [0.0004877641290737884, 0.0004877641290737884, 0.0004877641290737884, 9.755282581475769e-06, 4.8776412907378845e-06]
+
+Epoch 3/30:
+   Train Loss: 96.7720 (prov: 0.1892, cell: 2.1830, off: 5.0126, aux: 89.3872)
+   Val Loss:   191.2843 (prov: 0.8236, cell: 11.2253, off: 8.4232, aux: 170.8122)
+   Train Error: median=1.97km, mean=5.01km, p90=12.10km
+   Val Error:   median=3.13km, mean=8.43km, p90=20.98km
+
+Train Accuracy by Province:
+   Sindh                     95.32%
+   Punjab                    82.75%
+   Khyber Pakhtunkhwa        84.32%
+   ICT                       90.66%
+   Gilgit-Baltistan          97.79%
+   Balochistan               95.13%
+   Azad Kashmir              99.37%
+
+Val Accuracy by Province:
+   Sindh                     93.18%
+   Punjab                    62.97%
+   Khyber Pakhtunkhwa        54.12%
+   ICT                       60.59%
+   Gilgit-Baltistan          66.81%
+   Balochistan               50.28%
+   Azad Kashmir              44.44%
+🏆 New best validation median error: 3.13km (improved by 0.07km)
+======================================================================
+   Current LRs: [0.00047838636441065017, 0.00047838636441065017, 0.00047838636441065017, 9.567727288213003e-06, 4.7838636441065016e-06]
+
+Epoch 4/30:
+   Train Loss: 89.9933 (prov: 0.1649, cell: 1.9352, off: 4.8069, aux: 83.0863)
+   Val Loss:   185.0780 (prov: 0.8518, cell: 11.1412, off: 8.3678, aux: 164.7172)
+   Train Error: median=1.92km, mean=4.81km, p90=11.51km
+   Val Error:   median=3.15km, mean=8.38km, p90=20.58km
+
+Train Accuracy by Province:
+   Sindh                     95.69%
+   Punjab                    85.32%
+   Khyber Pakhtunkhwa        86.85%
+   ICT                       91.69%
+   Gilgit-Baltistan          98.05%
+   Balochistan               95.87%
+   Azad Kashmir              99.33%
+
+Val Accuracy by Province:
+   Sindh                     93.67%
+   Punjab                    63.33%
+   Khyber Pakhtunkhwa        53.93%
+   ICT                       59.23%
+   Gilgit-Baltistan          65.55%
+   Balochistan               53.59%
+   Azad Kashmir              41.67%
+======================================================================
+   Current LRs: [0.00046650635094610973, 0.00046650635094610973, 0.00046650635094610973, 9.330127018922194e-06, 4.665063509461097e-06]
+
+Epoch 5/30:
+   Train Loss: 84.9322 (prov: 0.1452, cell: 1.7395, off: 4.6498, aux: 78.3977)
+   Val Loss:   185.7027 (prov: 0.8882, cell: 11.1997, off: 8.3725, aux: 165.2422)
+   Train Error: median=1.89km, mean=4.65km, p90=11.23km
+   Val Error:   median=3.12km, mean=8.38km, p90=20.59km
+
+Train Accuracy by Province:
+   Sindh                     95.95%
+   Punjab                    87.20%
+   Khyber Pakhtunkhwa        88.65%
+   ICT                       93.02%
+   Gilgit-Baltistan          98.24%
+   Balochistan               96.44%
+   Azad Kashmir              99.40%
+
+Val Accuracy by Province:
+   Sindh                     93.84%
+   Punjab                    64.39%
+   Khyber Pakhtunkhwa        58.99%
+   ICT                       51.71%
+   Gilgit-Baltistan          65.97%
+   Balochistan               48.90%
+   Azad Kashmir              44.44%
+🏆 New best validation median error: 3.12km (improved by 0.01km)
+======================================================================
+   Current LRs: [0.00045225424859373693, 0.00045225424859373693, 0.00045225424859373693, 9.045084971874737e-06, 4.522542485937368e-06]
+
+Epoch 6/30:
+   Train Loss: 79.2874 (prov: 0.1278, cell: 1.5824, off: 4.4533, aux: 73.1239)
+   Val Loss:   182.9091 (prov: 0.9056, cell: 11.5215, off: 8.3054, aux: 162.1766)
+   Train Error: median=1.83km, mean=4.45km, p90=10.71km
+   Val Error:   median=3.09km, mean=8.31km, p90=20.45km
+
+Train Accuracy by Province:
+   Sindh                     96.39%
+   Punjab                    88.46%
+   Khyber Pakhtunkhwa        90.02%
+   ICT                       93.54%
+   Gilgit-Baltistan          98.62%
+   Balochistan               96.79%
+   Azad Kashmir              99.48%
+
+Val Accuracy by Province:
+   Sindh                     94.10%
+   Punjab                    66.63%
+   Khyber Pakhtunkhwa        52.81%
+   ICT                       50.11%
+   Gilgit-Baltistan          66.81%
+   Balochistan               50.83%
+   Azad Kashmir              46.30%
+🏆 New best validation median error: 3.09km (improved by 0.04km)
+======================================================================
+   Current LRs: [0.0004357862063693486, 0.0004357862063693486, 0.0004357862063693486, 8.71572412738697e-06, 4.357862063693485e-06]
+
+Epoch 7/30:
+   Train Loss: 74.5916 (prov: 0.1139, cell: 1.4564, off: 4.2779, aux: 68.7433)
+   Val Loss:   186.3674 (prov: 0.9328, cell: 11.3253, off: 8.2426, aux: 165.8667)
+   Train Error: median=1.79km, mean=4.28km, p90=10.23km
+   Val Error:   median=3.07km, mean=8.25km, p90=20.30km
+
+Train Accuracy by Province:
+   Sindh                     96.63%
+   Punjab                    89.82%
+   Khyber Pakhtunkhwa        91.39%
+   ICT                       94.52%
+   Gilgit-Baltistan          98.58%
+   Balochistan               97.09%
+   Azad Kashmir              99.61%
+
+Val Accuracy by Province:
+   Sindh                     94.01%
+   Punjab                    66.27%
+   Khyber Pakhtunkhwa        58.05%
+   ICT                       51.71%
+   Gilgit-Baltistan          63.45%
+   Balochistan               49.72%
+   Azad Kashmir              45.37%
+🏆 New best validation median error: 3.07km (improved by 0.02km)
+======================================================================
+   Current LRs: [0.0004172826515897146, 0.0004172826515897146, 0.0004172826515897146, 8.34565303179429e-06, 4.172826515897145e-06]
+
+Epoch 8/30:
+   Train Loss: 72.6690 (prov: 0.1034, cell: 1.3512, off: 4.1516, aux: 67.0627)
+   Val Loss:   178.3318 (prov: 0.9475, cell: 11.3870, off: 8.2360, aux: 157.7613)
+   Train Error: median=1.76km, mean=4.15km, p90=9.94km
+   Val Error:   median=3.08km, mean=8.24km, p90=20.54km
+
+Train Accuracy by Province:
+   Sindh                     96.94%
+   Punjab                    91.15%
+   Khyber Pakhtunkhwa        91.81%
+   ICT                       94.89%
+   Gilgit-Baltistan          98.67%
+   Balochistan               97.33%
+   Azad Kashmir              99.62%
+
+Val Accuracy by Province:
+   Sindh                     94.02%
+   Punjab                    67.57%
+   Khyber Pakhtunkhwa        54.68%
+   ICT                       50.57%
+   Gilgit-Baltistan          63.45%
+   Balochistan               53.31%
+   Azad Kashmir              44.44%
+======================================================================
+   Current LRs: [0.0003969463130731183, 0.0003969463130731183, 0.0003969463130731183, 7.938926261462365e-06, 3.969463130731182e-06]
+
+Epoch 9/30:
+   Train Loss: 69.6304 (prov: 0.0938, cell: 1.2510, off: 4.0384, aux: 64.2471)
+   Val Loss:   193.3437 (prov: 0.9826, cell: 11.6196, off: 8.2143, aux: 172.5273)
+   Train Error: median=1.72km, mean=4.04km, p90=9.70km
+   Val Error:   median=3.05km, mean=8.22km, p90=20.26km
+
+Train Accuracy by Province:
+   Sindh                     97.15%
+   Punjab                    92.04%
+   Khyber Pakhtunkhwa        92.75%
+   ICT                       95.52%
+   Gilgit-Baltistan          98.83%
+   Balochistan               97.66%
+   Azad Kashmir              99.72%
+
+Val Accuracy by Province:
+   Sindh                     93.64%
+   Punjab                    66.98%
+   Khyber Pakhtunkhwa        57.68%
+   ICT                       52.39%
+   Gilgit-Baltistan          66.81%
+   Balochistan               53.04%
+   Azad Kashmir              38.89%
+🏆 New best validation median error: 3.05km (improved by 0.02km)
+======================================================================
+   Current LRs: [0.000375, 0.000375, 0.000375, 7.499999999999999e-06, 3.7499999999999997e-06]
+
+Epoch 10/30:
+   Train Loss: 65.5698 (prov: 0.0860, cell: 1.1681, off: 3.9241, aux: 60.3916)
+   Val Loss:   185.4609 (prov: 1.0071, cell: 11.5408, off: 8.1740, aux: 164.7390)
+   Train Error: median=1.69km, mean=3.92km, p90=9.36km
+   Val Error:   median=3.05km, mean=8.18km, p90=19.89km
+
+Train Accuracy by Province:
+   Sindh                     97.36%
+   Punjab                    92.88%
+   Khyber Pakhtunkhwa        93.35%
+   ICT                       95.97%
+   Gilgit-Baltistan          98.97%
+   Balochistan               97.71%
+   Azad Kashmir              99.57%
+
+Val Accuracy by Province:
+   Sindh                     93.53%
+   Punjab                    71.23%
+   Khyber Pakhtunkhwa        53.00%
+   ICT                       52.85%
+   Gilgit-Baltistan          61.76%
+   Balochistan               52.76%
+   Azad Kashmir              50.93%
+======================================================================
+   Current LRs: [0.00035168416076895013, 0.00035168416076895013, 0.00035168416076895013, 7.033683215379001e-06, 3.5168416076895007e-06]
+
+Epoch 11/30:
+   Train Loss: 62.3383 (prov: 0.0756, cell: 1.0981, off: 3.8503, aux: 57.3143)
+   Val Loss:   188.8572 (prov: 1.0347, cell: 11.6681, off: 8.1964, aux: 167.9580)
+   Train Error: median=1.67km, mean=3.85km, p90=9.21km
+   Val Error:   median=3.04km, mean=8.21km, p90=20.19km
+
+Train Accuracy by Province:
+   Sindh                     97.59%
+   Punjab                    93.57%
+   Khyber Pakhtunkhwa        94.17%
+   ICT                       96.71%
+   Gilgit-Baltistan          99.09%
+   Balochistan               97.99%
+   Azad Kashmir              99.69%
+
+Val Accuracy by Province:
+   Sindh                     93.33%
+   Punjab                    67.45%
+   Khyber Pakhtunkhwa        58.05%
+   ICT                       53.53%
+   Gilgit-Baltistan          62.61%
+   Balochistan               48.90%
+   Azad Kashmir              46.30%
+🏆 New best validation median error: 3.04km (improved by 0.01km)
+======================================================================

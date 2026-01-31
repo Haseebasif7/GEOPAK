@@ -1,44 +1,4 @@
-"""
-Geocell refinement (Step 6-7):
-
-STEP 6 — BEST‑EFFORT RADIUS CONSTRAINT
-  For each cluster (per province):
-    compute centroid (x_m, y_m)
-    compute radius_m = max distance(point → centroid)
-    if radius_m > MAX_RADIUS_M (50 km):
-        split cluster with k-means (k=2) when feasible
-        try to reduce all clusters toward radius_m ≤ TARGET_MAX_RADIUS_M,
-        without ever violating the min_samples_per_cell constraint
-
-STEP 7 — MATCH TARGET CELL COUNTS
-  Target cells per province:
-    Sindh:       450
-    Punjab:      400
-    KPK:         220
-    ICT:         100
-    GB:          180
-    Balochistan: 100
-    AJK:          80
-
-  If too few cells:
-    repeatedly split largest clusters (k-means) until reaching target
-
-  If too many cells:
-    repeatedly merge nearest small clusters until reaching target
-
-Inputs (from previous steps, under pipeline/geocells/):
-  - province_<name>_clusters_step2.csv  (id, x_m, y_m, cluster_id)
-    or falls back to province_<name>_clusters.csv if step2 not run.
-
-Outputs (under pipeline/geocells/):
-  - province_<name>_clusters_final.csv  (id, x_m, y_m, cluster_id)
-  - geocell_step3_summary.md
-
-Original merged_training_data_with_province.csv is NOT modified.
-
-Run manually from repo root:
-    python pipeline/geocells_step3_radius_target.py
-"""
+"""Geocell refinement (Step 6-7): Best-effort radius constraint and target cell counts."""
 
 from __future__ import annotations
 
@@ -57,7 +17,23 @@ FINAL_SUFFIX = "_clusters_final.csv"
 SUMMARY_PATH = GEOCELLS_DIR / "geocell_step3_summary.md"
 
 MAX_RADIUS_M = 50_000.0  # 50 km in meters (BEST‑EFFORT target, not hard)
-MIN_SAMPLES_PER_CELL = 40
+# Province-specific min samples per cell
+MIN_SAMPLES_PER_CELL_BY_PROVINCE = {
+    "Balochistan": 35,  # Lower threshold for Balochistan
+}
+MIN_SAMPLES_PER_CELL = 40  # default
+
+def get_min_samples_for_province(province: str) -> int:
+    """Get min samples per cell for a province, with fallback to default."""
+    return MIN_SAMPLES_PER_CELL_BY_PROVINCE.get(province, MIN_SAMPLES_PER_CELL)
+
+# Province-specific radius targets (for Balochistan, use higher threshold)
+MAX_RADIUS_M_BY_PROVINCE = {
+    "Balochistan": 60_000.0,  # 60 km for Balochistan (target: 55-65 km avg)
+}
+# Default to MAX_RADIUS_M if province not specified
+def get_max_radius_for_province(province: str) -> float:
+    return MAX_RADIUS_M_BY_PROVINCE.get(province, MAX_RADIUS_M)
 
 TARGET_CELLS = {
     "Sindh": 450,
@@ -65,7 +41,7 @@ TARGET_CELLS = {
     "Khyber Pakhtunkhwa": 220,
     "ICT": 100,
     "Gilgit-Baltistan": 180,
-    "Balochistan": 100,
+    "Balochistan": 50,  # Updated: target 48-55, using 50 as middle
     "Azad Kashmir": 80,
 }
 
@@ -230,8 +206,11 @@ def _split_cluster_if_feasible(
     return True, new_df, new_id + 1
 
 
-def _enforce_radius(df: pd.DataFrame) -> Tuple[pd.DataFrame, ClusterStats]:
-    """Split clusters until all have radius <= MAX_RADIUS_M."""
+def _enforce_radius(df: pd.DataFrame, province: str = None) -> Tuple[pd.DataFrame, ClusterStats]:
+    """Split clusters until all have radius <= max_radius for province."""
+    max_radius = get_max_radius_for_province(province) if province else MAX_RADIUS_M
+    min_samples = get_min_samples_for_province(province) if province else MIN_SAMPLES_PER_CELL
+    
     # Initial stats
     radii_before = _cluster_radii(df)
     max_radius_before = max(radii_before.values()) if radii_before else 0.0
@@ -247,12 +226,16 @@ def _enforce_radius(df: pd.DataFrame) -> Tuple[pd.DataFrame, ClusterStats]:
             break
 
         cid_worst, r_worst = max(radii.items(), key=lambda kv: kv[1])
-        if r_worst <= MAX_RADIUS_M:
+        if r_worst <= max_radius:
             break
 
-        # Split worst cluster
-        df = df.copy()
-        next_cluster_id = _split_cluster_kmeans(df, cid_worst, next_cluster_id)
+        # Split worst cluster (check feasibility first)
+        success, new_df, next_cluster_id = _split_cluster_if_feasible(
+            df, cid_worst, next_cluster_id, min_samples_per_cell=min_samples
+        )
+        if not success:
+            break
+        df = new_df
 
     radii_after = _cluster_radii(df)
     max_radius_after = max(radii_after.values()) if radii_after else 0.0
@@ -268,17 +251,20 @@ def _enforce_radius(df: pd.DataFrame) -> Tuple[pd.DataFrame, ClusterStats]:
     return df, stats
 
 
-def _best_effort_radius_reduction(df: pd.DataFrame) -> pd.DataFrame:
+def _best_effort_radius_reduction(df: pd.DataFrame, province: str = None) -> pd.DataFrame:
     """
     Final pass (BEST‑EFFORT radius reduction):
-      1) Try to reduce max radius toward MAX_RADIUS_M by splitting worst cells,
+      1) Try to reduce max radius toward max_radius for province by splitting worst cells,
          but ONLY when feasible under the min_samples_per_cell constraint.
-      2) After each split, run min-size cleanup to keep all cells >= 40 samples.
-    This does NOT guarantee radius <= MAX_RADIUS_M in extremely sparse regions.
+      2) After each split, run min-size cleanup to keep all cells >= min_samples.
+    This does NOT guarantee radius <= max_radius in extremely sparse regions.
     """
+    max_radius = get_max_radius_for_province(province) if province else MAX_RADIUS_M
+    min_samples = get_min_samples_for_province(province) if province else MIN_SAMPLES_PER_CELL
+    
     df = df.copy()
     next_cluster_id = int(df["cluster_id"].max()) + 1
-    max_iterations = 100
+    max_iterations = 200  # Increased for Balochistan
 
     for _ in range(max_iterations):
         radii = _cluster_radii(df)
@@ -286,7 +272,7 @@ def _best_effort_radius_reduction(df: pd.DataFrame) -> pd.DataFrame:
             break
 
         cid_worst, r_worst = max(radii.items(), key=lambda kv: kv[1])
-        if r_worst <= MAX_RADIUS_M:
+        if r_worst <= max_radius:
             break
 
         # Try to split this cluster while respecting min-samples constraint
@@ -294,7 +280,7 @@ def _best_effort_radius_reduction(df: pd.DataFrame) -> pd.DataFrame:
             df,
             cid_worst,
             next_cluster_id,
-            min_samples_per_cell=MIN_SAMPLES_PER_CELL,
+            min_samples_per_cell=min_samples,
         )
         if not success:
             # Cannot further reduce radius without violating min-samples;
@@ -303,18 +289,18 @@ def _best_effort_radius_reduction(df: pd.DataFrame) -> pd.DataFrame:
 
         df = new_df
         # Ensure no sub-cluster fell below min size after the split
-        df = _merge_small_cells(df, MIN_SAMPLES_PER_CELL)
+        df = _merge_small_cells(df, min_samples)
 
     return df
 
 
-def _match_target_cells(df: pd.DataFrame, target_cells: int) -> pd.DataFrame:
+def _match_target_cells(df: pd.DataFrame, target_cells: int, min_samples: int = MIN_SAMPLES_PER_CELL) -> pd.DataFrame:
     """
     Adjust number of cells to match an *effective* target using split/merge
     operations, while respecting the min_samples_per_cell constraint.
 
     NOTE: This function assumes the caller has ALREADY applied the
-    max-feasible cap: target_cells = min(spec_target, floor(N / 40)).
+    max-feasible cap: target_cells = min(spec_target, floor(N / min_samples)).
     """
     # Ensure contiguous integer ids for simplicity
     unique_ids = sorted(df["cluster_id"].unique())
@@ -350,7 +336,7 @@ def _match_target_cells(df: pd.DataFrame, target_cells: int) -> pd.DataFrame:
             df,
             cid_candidate,
             next_cluster_id,
-            min_samples_per_cell=MIN_SAMPLES_PER_CELL,
+            min_samples_per_cell=min_samples,
         )
         if not success:
             # Mark this cluster as unsplittable and try another
@@ -411,36 +397,28 @@ def main():
             continue
 
         n_samples = len(df)
-        max_feasible_cells = max(1, n_samples // MIN_SAMPLES_PER_CELL)
+        min_samples_prov = get_min_samples_for_province(province)
+        max_feasible_cells = max(1, n_samples // min_samples_prov)
         desired_cells = min(spec_target, max_feasible_cells)
 
-        print(f"  Samples: {n_samples}")
-        print(f"  Max feasible cells (n/40): {max_feasible_cells}")
-        print(f"  Effective target cells: {desired_cells}")
-
-        # Step 6: enforce radius ≤ 50 km
-        df_radius, stats = _enforce_radius(df)
+        # Step 6: enforce radius (province-specific)
+        df_radius, stats = _enforce_radius(df, province=province)
 
         # Step 7: match target cell counts (using effective target)
-        df_final = _match_target_cells(df_radius, target_cells=desired_cells)
+        min_samples_prov = get_min_samples_for_province(province)
+        df_final = _match_target_cells(df_radius, target_cells=desired_cells, min_samples=min_samples_prov)
         stats.n_cells_final = df_final["cluster_id"].nunique()
 
         # Final mandatory cleanups:
-        # 1) Enforce min cell size via merge-only pass
-        df_final = _merge_small_cells(df_final, MIN_SAMPLES_PER_CELL)
-        # 2) Best-effort radius reduction with size cleanup
-        df_final = _best_effort_radius_reduction(df_final)
+        # 1) Enforce min cell size via merge-only pass (province-specific)
+        df_final = _merge_small_cells(df_final, min_samples_prov)
+        # 2) Best-effort radius reduction with size cleanup (province-specific)
+        df_final = _best_effort_radius_reduction(df_final, province=province)
 
         # Save final clusters
         stem = f"province_{province.replace(' ', '_')}"
         final_path = GEOCELLS_DIR / f"{stem}{FINAL_SUFFIX}"
         df_final.to_csv(final_path, index=False)
-
-        print(f"  Cells before: {stats.n_cells_before}")
-        print(f"  Cells after radius step: {stats.n_cells_after_radius}")
-        print(f"  Cells final (after target adjust): {stats.n_cells_final}")
-        print(f"  Max radius before: {stats.max_radius_before_m/1000:.2f} km")
-        print(f"  Max radius after : {stats.max_radius_after_m/1000:.2f} km")
 
         # Recompute radii for final clusters for reporting
         radii_final = _cluster_radii(df_final)
@@ -481,7 +459,6 @@ def main():
 
     SUMMARY_PATH.write_text("\n".join(lines))
     print(f"\nSummary written to {SUMMARY_PATH}")
-    print("Step 6-7 complete (offline).")
 
 
 if __name__ == "__main__":

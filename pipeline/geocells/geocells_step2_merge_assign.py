@@ -1,28 +1,4 @@
-"""
-Geocell refinement (Step 4-5):
-
-STEP 4 — MERGE UNDERSIZED CLUSTERS
-  For each province & cluster (cluster_id >= 0):
-    if cluster_size < min_samples_per_cell (40):
-        find nearest valid cluster (by centroid distance)
-        merge into it
-
-STEP 5 — ASSIGN NOISE POINTS
-  For each point with cluster_id = -1:
-    assign to nearest cluster centroid
-
-Inputs (from geocells_step1.py, under pipeline/geocells/):
-  - province_<name>_clusters.csv  (id, x_m, y_m, cluster_id)
-
-Outputs (under pipeline/geocells/):
-  - province_<name>_clusters_step2.csv  (id, x_m, y_m, cluster_id)
-  - geocell_step2_summary.md
-
-Original merged_training_data_with_province.csv is NOT modified.
-
-Run manually from repo root:
-    python pipeline/geocells_step2_merge_assign.py
-"""
+"""Geocell refinement (Step 4-5): Merge undersized clusters and assign noise."""
 
 from __future__ import annotations
 
@@ -37,7 +13,15 @@ STEP1_PATTERN = "province_*_clusters.csv"
 STEP2_SUFFIX = "_clusters_step2.csv"
 SUMMARY_PATH = GEOCELLS_DIR / "geocell_step2_summary.md"
 
-MIN_SAMPLES_PER_CELL = 40  # min samples per cell used for merging
+# Province-specific min samples per cell
+MIN_SAMPLES_PER_CELL_BY_PROVINCE = {
+    "Balochistan": 35,  # Lower threshold for Balochistan to allow more clusters
+}
+MIN_SAMPLES_PER_CELL = 40  # default min samples per cell used for merging
+
+def get_min_samples_for_province(province: str) -> int:
+    """Get min samples per cell for a province, with fallback to default."""
+    return MIN_SAMPLES_PER_CELL_BY_PROVINCE.get(province, MIN_SAMPLES_PER_CELL)
 
 
 def _load_step1_files() -> Dict[str, Path]:
@@ -67,8 +51,9 @@ def _cluster_centroids(
     return centroids
 
 
-def _merge_undersized_clusters(df: pd.DataFrame) -> pd.DataFrame:
-    """Merge clusters with size < MIN_SAMPLES_PER_CELL into nearest valid cluster."""
+def _merge_undersized_clusters(df: pd.DataFrame, province: str = None) -> pd.DataFrame:
+    """Merge clusters with size < min_samples (province-specific) into nearest valid cluster."""
+    min_samples = get_min_samples_for_province(province) if province else MIN_SAMPLES_PER_CELL
     labels = df["cluster_id"].to_numpy()
 
     # Compute sizes for non-noise clusters
@@ -76,7 +61,7 @@ def _merge_undersized_clusters(df: pd.DataFrame) -> pd.DataFrame:
     sizes = dict(zip(unique.tolist(), counts.tolist()))
 
     # Identify small clusters
-    small_clusters = [cid for cid, c in sizes.items() if c < MIN_SAMPLES_PER_CELL]
+    small_clusters = [cid for cid, c in sizes.items() if c < min_samples]
 
     if not small_clusters:
         return df
@@ -183,8 +168,8 @@ def main():
         total_before = len(df)
         n_noise_before = int((df["cluster_id"] == -1).sum())
 
-        # Merge small clusters
-        df_merged = _merge_undersized_clusters(df)
+        # Merge small clusters (with province-specific threshold)
+        df_merged = _merge_undersized_clusters(df, province=province)
 
         # Assign noise
         df_final = _assign_noise_to_nearest(df_merged)
@@ -202,12 +187,6 @@ def main():
         out_path = path.with_name(path.stem + STEP2_SUFFIX)
         df_final.to_csv(out_path, index=False)
 
-        print(f"  Input rows: {total_before:,}")
-        print(f"  Noise before: {n_noise_before:,}")
-        print(f"  Noise after: {n_noise_after:,}")
-        print(f"  Clusters (final): {n_clusters:,}")
-        print(f"  Cell size range: {min_size:,} – {max_size:,}")
-
         lines.append(f"## {province}")
         lines.append(f"- Input file: {path.name}")
         lines.append(f"- Output file: {out_path.name}")
@@ -219,7 +198,6 @@ def main():
 
     SUMMARY_PATH.write_text("\n".join(lines))
     print(f"\nSummary written to {SUMMARY_PATH}")
-    print("Step 4-5 complete (offline).")
 
 
 if __name__ == "__main__":

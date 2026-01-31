@@ -1,32 +1,4 @@
-"""
-Step 8 — Save cell metadata (per province)
-
-Reads final per-province cluster assignments and:
-  - Computes per-cell centroids in UTM and lat/lon
-  - Computes per-cell radius_km (max haversine distance to centroid)
-  - Computes neighbor_cell_ids via K-NN on centroids (per province)
-  - Assigns global cell_id and province_id
-
-Inputs (under pipeline/geocells/):
-  - province_<name>_clusters_final.csv  (id, x_m, y_m, cluster_id)
-
-Outputs:
-  - pipeline/geocells/cell_metadata.csv
-      columns:
-        cell_id
-        province
-        province_id
-        local_cluster_id
-        center_lat
-        center_lon
-        radius_km
-        neighbor_cell_ids   (comma-separated global cell_ids)
-
-Original merged_training_data_with_province.csv is NOT modified.
-
-Run manually from repo root:
-    python pipeline/geocells_step4_metadata.py
-"""
+"""Step 8 — Save cell metadata (per province)"""
 
 from __future__ import annotations
 
@@ -163,9 +135,6 @@ def main():
         if df is None:
             print("  No final clusters file found, skipping.")
             continue
-
-        print(f"  Samples: {len(df):,}")
-        print(f"  Unique local clusters: {df['cluster_id'].nunique():,}")
 
         points_with_latlon, meta_local = _compute_cell_metadata_for_province(province, df)
 
