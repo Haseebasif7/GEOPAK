@@ -1,6 +1,6 @@
-# GEOPAK: Geographic Vision Model for Pakistan
+# 🇵🇰 GEOPAK: A Province Aware Hierarchical Geolocation Framework for Vision Based Localization in Pakistan
 
-GEOPAK is a specialized geographic vision model designed to estimate the precise location (latitude, longitude) of images taken within Pakistan. Unlike global models, GEOPAK handles the specific visual diversity of Pakistan's provinces—from the coastal lines of Sindh to the mountainous terrains of Gilgit-Baltistan—by leveraging a novel dual-encoder architecture and a province-aware geocell classification system.
+GEOPAK is a specialized geographic vision model designed to estimate the precise location (latitude, longitude) of images taken within Pakistan. Unlike global models, GEOPAK handles the specific visual diversity of Pakistan's provinces from the coastal lines of Sindh to the mountainous terrains of Gilgit-Baltistan by leveraging a novel dual-encoder architecture and a province aware geocell classification system.
 
 ## 🧠 Model Architecture
 
@@ -69,9 +69,23 @@ The dataset contains a total of **90,515** images (81,462 Train, 9,053 Test). It
 
 ---
 
+## 🎨 Data Augmentation (Geography-Safe)
+To improve generalization in sparse data regions, we use a custom augmentation strategy that preserves critical geographic cues.
+
+| ✅ Allowed (Safe) | ❌ Avoid (Biased) |
+| :--- | :--- |
+| **Random Crop**: Handles scale invariance. | **Horizontal Flips**: Destroys roads & traffic orientation bias. |
+| **Color Jitter**: Handles variable lighting & time-of-day. | **Large Rotations**: Destroys horizon/landscape cues. |
+| **Weather Simulation**: Simulates fog, rain, and overcast. | **Perspective Warps**: Creates unnatural distortions. |
+| **Slight Blur / Noise**: Handles sensor diversity. | |
+
+---
+
 ## 🚀 Training
 
-Training is divided into two distinct phases to ensure stability and accuracy.
+The GEOPAK model is trained on high-performance **NVIDIA A100 GPUs** powered by [**Modal**](https://modal.com), enabling scalable and efficient processing of Pakistan's geographic datasets.
+
+Training is divided into three sequential phases to ensure stability and accuracy.
 
 ### Phase 0: Province Pre-training
 Initial stage to establish a strong baseline for province classification across Pakistan's diverse regions.
@@ -82,13 +96,25 @@ Initial stage to establish a strong baseline for province classification across 
     python model/province/train_province.py --batch_size 64 --num-epochs 8
     ```
 
-### Phase 1: Geographic Pre-training
-Focuses on learning the geographic layout and province-cell hierarchy.
-*   **Module**: `model/phase1`
-*   **Objective**: Maximize Province & Cell classification accuracy.
+### Phase 1: Geographic Structure Learning
+Focuses on learning the geographic layout and province-cell hierarchy while keeping the vision system stable.
+*   **Encoders**: ❌ **Frozen**
+*   **Trainable Modules**: Cell classifier, Offset heads, Cell embeddings.
+*   **LR**: $10^{-3}$
+*   **Epochs**: 15–25
 *   **Command**:
     ```bash
-    python model/phase1/train_phase1.py --batch_size 64 --epochs 30 --lr 0.001
+    python model/phase1/train_phase1.py --batch_size 64 --num-epochs 25
+    ```
+
+### Phase 2: Partial Vision Adaptation
+Adapts the vision encoders specifically to Pakistan's regional features.
+*   **Encoders**: 🔓 **Unfreeze top 25–30%** of layers.
+*   **LR**: Encoder ($10^{-5}$), Heads ($5 \times 10^{-4}$)
+*   **Epochs**: 20–30
+*   **Command**:
+    ```bash
+    python model/phase2/train_phase2.py --load_from_phase1 checkpoints/phase1/best.pt
     ```
 
 ### Loss Functions
@@ -112,7 +138,7 @@ The offset head predicts the deviations $(\Delta \text{lat}, \Delta \text{lon})$
 $$ \mathcal{L}_{\text{offset}} = \text{Haversine}( (\text{lat}_{\text{cell}} + \Delta \text{lat}, \text{lon}_{\text{cell}} + \Delta \text{lon}), (\text{lat}_{\text{gt}}, \text{lon}_{\text{gt}}) ) $$
 
 #### 4. Total Loss
-The final objective is a weighted sum of these components, with an auxiliary loss $\mathcal{L}_{aux}$ for intermediate supervision:
+The final objective is a weighted sum of these components, with an auxiliary loss $\mathcal{L}_{\text{aux}}$ for intermediate supervision:
 
 $$ \mathcal{L}_{\text{total}} = \lambda_{\text{prov}} \mathcal{L}_{\text{prov}} + \lambda_{\text{cell}} \mathcal{L}_{\text{cell}} + \lambda_{\text{off}} \mathcal{L}_{\text{offset}} + \lambda_{\text{aux}} \mathcal{L}_{\text{aux}} $$
 
@@ -123,15 +149,6 @@ $$ \mathcal{L}_{\text{aux}} = \text{Haversine}( (\text{lat}_{\text{pred}}, \text
 
 ---
 
-### Phase 2: Partial Vision Adaptation
-Adapts the vision encoders (Partial finetuning) to better recognize Pakistan-specific features without losing generalization.
-*   **Module**: `model/phase2`
-*   **Objective**: Fine-tune fusion gates and specific encoder layers. Uses "Mixture of Hypotheses" to balance old vs. new knowledge.
-*   **Command**:
-    ```bash
-    python model/phase2/train_phase2.py --load_from_phase1 checkpoints/phase1/best.pt
-    ```
-
 ### 🧠 Inference Pipeline (Mixture of Hypotheses)
 
 GEOPAK does not use a simple argmax approach. Instead, it employs a probabilistic mixture to handle spatial ambiguity across borders:
@@ -139,10 +156,10 @@ GEOPAK does not use a simple argmax approach. Instead, it employs a probabilisti
 1.  **Province Selection**: The model predicts province probabilities and selects the **Top-2 provinces**.
 2.  **Cell Selection**: For each selected province, the model selects the **Top-K (K=5) geocells**.
 3.  **Coordinate Refinement**: For each of the 10 candidate cells, the model calculates the final coordinate as:
-    $$\text{pred}_i = \text{cell\_center}_i + \text{offset}_i$$
+    $$ \text{pred}_{i} = \text{cell center}_{i} + \text{offset}_{i} $$
 4.  **Weighted Aggregation**: The final output is the weighted sum of these hypotheses based on their joint probability:
-    $$P(i) = P(\text{province} | \text{image}) \times P(\text{cell} | \text{image, province})$$
-    $$\text{Final LatLon} = \sum P(i) \times \text{pred}_i$$
+    $$ P(i) = P(\text{province} \mid \text{image}) \times P(\text{cell} \mid \text{image, province}) $$
+    $$ \text{Final LatLon} = \sum P(i) \times \text{pred}_{i} $$
 
 
 ---
@@ -168,17 +185,8 @@ print(f"Confidence: {result['confidence']:.2f}")
 
 ---
 
-## ⚠️ Limitations
+## ⚠️ Challenges & Future Outlook
 
-1.  **Data Imbalance**: Performance is significantly better in urban hubs (Lahore, Karachi, Islamabad) and tourist hotspots (Hunza, Skardu) compared to remote regions (Turbat, rural Balochistan).
-2.  **Dataset Size**: The total dataset is smaller than global benchmarks (e.g., IM2GPS), limiting the model's ability to generalize to unseen locations that look generic (e.g., generic agricultural fields).
-3.  **Ambiguity**: Visual features in some regions (e.g., arid plains in Sindh vs. Punjab) can be extremely similar, leading to province confusion errors.
+The primary limitation of this framework is the **extreme sparsity of geotagged data available in Pakistan**. Despite exhaustive efforts to extract imagery from all possible sources—including the Google Places API, Flickr API, and custom regional crawlers—the resulting dataset remains significantly smaller than global benchmarks.
 
----
-
-## 🗺️ Roadmap & Future Work
-
-While the **dual-encoder gated fusion architecture** has proven robust for geographic localization, future improvements for Pakistan-specific models should focus primarily on data-centric challenges:
-
-*   **Metadata Integration**: The current architecture is performing optimally; however, model performance is bottlenecked by the lack of structured metadata (e.g., EXIF, street-level tags) common in Pakistani geotagged data. Integrating multi-modal metadata would be the logical next step for refinement.
-*   **Regional Data Density**: Addressing the sparsity in Balochistan and South Punjab remains the highest priority for achieving localized generalization.
+Consequently, the model is often unable to fully learn complex geographic patterns across the varied Pakistani terrain from such a limited sample size. This results in a performance bias toward high-density urban centers like Lahore and Karachi, while the model struggles to generalize in remote, data-scarce regions. While the **dual-encoder gated fusion architecture** is technically robust, its potential is currently constrained by these data-related gaps. Future work will focus on overcoming these sparsity issues through multi-modal metadata integration and further regional data density expansion.
