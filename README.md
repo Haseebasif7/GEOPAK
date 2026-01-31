@@ -65,7 +65,7 @@ The dataset contains a total of **90,515** images (81,462 Train, 9,053 Test). It
 
 > **🚀 Availability**: The full curated dataset of ~90k images will be made available soon via HuggingFace.
 
-> **⚠️ Limitation**: The model may struggle in **Balochistan** and rural areas of **Southern Punjab/Interior Sindh** due to the scarcity of training data. The "Balanced Sampler" (`pipeline/data_streaming/balanced_sampler.py`) attempts to mitigate this during training by oversampling sparse regions.
+> **⚠️ Limitation**: The model may struggle in **Balochistan** and all areas due to data sparsity of Pakistan . 
 
 ---
 
