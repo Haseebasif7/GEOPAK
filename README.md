@@ -63,7 +63,9 @@ The dataset contains a total of **90,515** images (81,462 Train, 9,053 Test). It
 | **Gilgit-Baltistan** | 2,379 | Low-Med | Iconic tourism spots, but sparse non-tourist data. |
 | **Azad Kashmir** | 1,075 | Very Low | Tourism-driven, similar coverage to GB. |
 
-> **🚀 Availability**: The full curated dataset of ~90k images and **trained model checkpoints** will be made available soon via HuggingFace.
+> **🚀 Availability**: The full curated dataset of ~90k images and  will be made available soon via HuggingFace.
+
+Checkpoints : https://huggingface.co/HaseebAsif/GEOPAK
 
 > **⚠️ Limitation**: The model may struggle in **Balochistan** and all areas due to data sparsity of Pakistan . 
 
